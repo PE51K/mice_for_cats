@@ -1,0 +1,1795 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MICE for CATs: Model-Internal Confidence Estimation for Calibrating Agents with Tools</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date type="published" when="2025-04-28">28 Apr 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Nishant</forename><surname>Subramani</surname></persName>
+							<email>nishant2@cs.cmu.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+							<email>jason.eisner@microsoft.com</email>
+							<affiliation key="aff1">
+								<address>
+									<settlement>Microsoft</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Justin</forename><surname>Svegliato</surname></persName>
+							<email>jsvegliato@microsoft.com</email>
+							<affiliation key="aff1">
+								<address>
+									<settlement>Microsoft</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+							<email>ben.vandurme@microsoft.com</email>
+							<affiliation key="aff1">
+								<address>
+									<settlement>Microsoft</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+							<affiliation key="aff1">
+								<address>
+									<settlement>Microsoft</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+							<email>samuel.thomson@microsoft.com</email>
+							<affiliation key="aff1">
+								<address>
+									<settlement>Microsoft</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<address>
+									<country>CMU LTI</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MICE for CATs: Model-Internal Confidence Estimation for Calibrating Agents with Tools</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-04-28">28 Apr 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">8B9FED5A4385275C0D84C4ACB294850C</idno>
+					<idno type="arXiv">arXiv:2504.20168v1[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.7.3" ident="GROBID" when="2025-12-04T16:10+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool-using agents that act in the world need to be both useful and safe. Well-calibrated model confidences can be used to weigh the risk versus reward of potential actions, but prior work shows that many models are poorly calibrated. Inspired by interpretability literature exploring the internals of models, we propose a novel class of model-internal confidence estimators (MICE) to better assess confidence when calling tools. MICE first decodes from each intermediate layer of the language model using logit lens (nostalgebraist, 2020) and then computes similarity scores between each layer's generation and the final output. These features are fed into a learned probabilistic classifier to assess confidence in the decoded output. On the simulated trial and error (STE) tool-calling dataset using Llama3 models, we find that MICE beats or matches the baselines on smoothed expected calibration error. Using MICE confidences to determine whether to call a tool significantly improves over strong baselines on a new metric, expected tool-calling utility. Further experiments show that MICE is sample-efficient, can generalize zero-shot to unseen APIs, and results in higher tool-calling utility in scenarios with varying risk levels.</p><p>Our code is open source, available at https: //github.com/microsoft/mice_for_cats.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Language models are increasingly being used as tool-using agents, where they can generate executable API calls that can change external environments <ref type="bibr" target="#b35">(Schick et al., 2024;</ref><ref type="bibr" target="#b51">Yan et al., 2024;</ref><ref type="bibr" target="#b46">Wang et al., 2024;</ref><ref type="bibr" target="#b34">Roy et al., 2024)</ref>. Sometimes the generated tool calls are relatively safe, and mistakes will have minimal impact (e.g., if "how many grand slams has Serena Williams won?" resulted in the incorrect tool call tennis_reference_count_grand_slams( name="venus williams"), then the user would just be misinformed). But other times, incorrect tool calls can be more harmful (e.g., if "please remove slash.txt" resulted in the incorrect tool call cli(args="rm -rf /"), then the user would lose the contents of their filesystem).</p><p>A confidence estimator estimates the probability that another model's output is correct. A simple confidence estimator for a language model would be based on the probability that the model itself assigns to its output (i.e., the product of token probabilities) or to its output's semantic equivalence class <ref type="bibr" target="#b56">(Zhong et al., 2023;</ref><ref type="bibr" target="#b12">Farquhar et al., 2024</ref>). Yet prior work has shown that this method can be poorly calibrated <ref type="bibr" target="#b18">(Jiang et al., 2021;</ref><ref type="bibr" target="#b24">Mielke et al., 2022;</ref><ref type="bibr" target="#b19">Kadavath et al., 2022;</ref><ref type="bibr">Yin et al., 2023)</ref>. A probabilistic classifier is well calibrated if on an unseen test distribution, it is correct about as often as it thinks it is <ref type="bibr" target="#b8">(Dawid, 1982;</ref><ref type="bibr" target="#b15">Guo et al., 2017;</ref><ref type="bibr" target="#b9">Desai and Durrett, 2020;</ref><ref type="bibr" target="#b55">Zhao et al., 2021;</ref><ref type="bibr" target="#b16">Hashemi et al., 2024)</ref>. For example, of those unseen examples that it predicts to be positive with ≈ 25% probability, ≈ 25% really are positive. Well-calibrated probabilities can be used to guide downstream decisions, but calibration should never be one's only engineering target, as even a highly unsure classifier may be well-calibrated (see §3.1).</p><p>To that end, we introduce a class of modelinternal confidence estimators (MICE) and an end-to-end metric, expected tool-calling utility (ETCU), to evaluate a tool-calling agent that consults a confidence estimator to decide when to launch the predicted tool call.<ref type="foot" target="#foot_0">1</ref> MICE extracts fea- tures by decoding from the intermediate layers of a transformer-based large language model (LLM) and computes the similarities of those generations to the output of the final layer. Based on these features and the LLM's raw confidence, it learns a model that outputs a confidence score. MICE excels on ETCU, increasingly outperforming two strong baselines as the cost of incorrect tool calls increases, without increasing calibration error.</p><p>This paper makes the following contributions: We propose a class of model-internal confidence estimators (MICE) that are empirically wellcalibrated on the task of assessing generated tool calls ( §2). We introduce a new metric, expected tool-calling utility, that combines accuracy and calibration to better evaluate tool-calling agents ( §3). Finally, we show that MICE is sample-efficient and can generalize to new tools, even in a zero-shot setting ( §5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Model-Internal Confidence Estimators</head><p>MICE is a simple learned probabilistic classifier whose features are derived from model-internal activations. Prior work on understanding the internals of transformer language models has shown that intermediate layers at different depths encode different types of information, and that the activation spaces at various layers of these models can be nudged to generate sequences in targeted ways <ref type="bibr" target="#b44">(Tenney et al., 2019;</ref><ref type="bibr" target="#b40">Subramani et al., 2019;</ref><ref type="bibr" target="#b41">Subramani and Suresh, 2020;</ref><ref type="bibr" target="#b42">Subramani et al., 2022;</ref><ref type="bibr" target="#b45">Turner et al., 2023)</ref>. Decoding from the layers of a transformer language model has provided insight into the underlying mechanisms and has been used in early-exit algorithms for faster generation <ref type="bibr">(nostalgebraist, 2020;</ref><ref type="bibr" target="#b13">Geva et al., 2022;</ref><ref type="bibr" target="#b36">Schuster et al., 2022;</ref><ref type="bibr" target="#b2">Belrose et al., 2023)</ref>. For question answering tasks, decoding from roughly the first half of the layers of the language model produces unintelligible results, but in later layers the model's predictions slowly refine into a plausible answer <ref type="bibr" target="#b23">(Merullo et al., 2024)</ref>.</p><p>We hypothesize that features from intermediate layers' hidden states could provide useful signal for calibration. Drastic changes in the final few layers could indicate the inability for the LLM to pinpoint a tool call. As a result, we may trust a prediction that was slowly refined into an answer over the final 50% of layers more than one that drastically changed in the final few layers, even if they had the same distribution at the end.</p><p>BERTScore Features Since we hypothesize that intermediate layers' hidden states could be a useful signal for calibration beyond the confidences derived from the final layer, we decode from each layer, much as in logit lens (nostalgebraist, 2020), a model interpretation technique. We first decode the output string y at temperature 0. This is the usual way to obtain model output in a task like tool calling. Then at each layer i &lt; ℓ, we obtain a preliminary output string y (i) of the same length by per-token argmax decoding:<ref type="foot" target="#foot_2">2</ref> </p><formula xml:id="formula_0">y (i) t = argmax h (i) t-1 W out (1)</formula><p>where each t is a token position in y, and the row vector h</p><formula xml:id="formula_1">(i)</formula><p>t-1 ∈ R d is the model's layer-i encoding at the previous position, whose product with the unembedding matrix W out ∈ R d×|V | is a vector of logits ∈ R |V | . Here, d is the embedding size and |V | is the vocabulary size. This results in ℓ strings, where ℓ is the number of layers of the model.</p><p>We then compute the BERTScore <ref type="bibr" target="#b54">(Zhang et al., 2020)</ref> between y and each y (i) . These become the main input features to the MICE model. <ref type="foot" target="#foot_3">3</ref>Raw Confidence Feature We also integrate the raw confidence of the language model in generating the tool call as a feature to the MICE model. We calculate this by computing the product of the probabilities of the tokens in the generated tool call. We Figure <ref type="figure">3</ref>: BERTScore similarities between the generated string y and the preliminary strings y (i) from earlier layers, for Llama3-8B-Instruct on the STE validation set <ref type="bibr" target="#b46">(Wang et al., 2024)</ref>. See also Figure <ref type="figure">8</ref> in Appendix A.</p><p>notice that including formatting tokens, which are always present in the tool call, leads to increased noise and a less accurate estimate of confidence, so we omit the tokens associated with formatting. The gray tokens in Figure <ref type="figure" target="#fig_0">1</ref> were omitted, while the green ones were included.</p><p>Model Architecture We train a simple supervised classifier that predicts whether the generated tool call y is correct. It maps from the input features-the BERTScores and the raw confidence-to a probability of correctness (i.e., a confidence estimate). Any trainable model of this form could be used here; the specific architectures and baselines that we tried will be described in §4.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Metrics</head><p>Perhaps the most widely reported calibration metric is expected calibration error ( §3.1). As mentioned in the introduction, however, minimizing ECE should not be our only goal. We also introduce a utility metric, expected tool-calling utility ( §3.2), to assess the performance of a simple agent that makes call/no-call decisions by using our well-calibrated confidence estimates. This metric is parameterized by the cost of false positives relative to the reward of true positives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Expected Calibration Error (ECE)</head><p>Expected calibration error <ref type="bibr">(ECE;</ref><ref type="bibr" target="#b26">Naeini et al., 2014</ref><ref type="bibr" target="#b27">Naeini et al., , 2015) )</ref> is computed by constructing a histogram binned by predicted confidence, p. The accuracy of examples within a given bin is compared to the mean predicted confidence within that bin, |acc -p|. These absolute differences are then averaged across bins, with each bin weighted by the fraction of examples in that bin.</p><p>We use a recently improved variant of ECE, smooth ECE (smECE; <ref type="bibr" target="#b4">Błasiok and Nakkiran, 2024)</ref>, which replaces histogram binning with Nadaraya-Watson kernel regression <ref type="bibr" target="#b25">(Nadaraya, 1964;</ref><ref type="bibr" target="#b50">Watson, 1964)</ref>. A reflected Gaussian kernel is used; the kernel width is determined automatically from the data, yielding a consistent estimator.</p><p>However, ECE and smECE do not distinguish between an oracle classifier that returns p = 1.0 on correct outputs and p = 0.0 on incorrect outputs, and a maximally uninformative probabilistic classifier that always predicts the base accuracy rate. That is, if 70% of all predictions are correct, then a trivial system that gave p = 0.7 on every example would be perfectly calibrated (ECE = 0), yet mostly useless! We would prefer a system that tends to return high p on correct tool calls and low p on incorrect ones, so that we can execute the former and avoid executing the latter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Expected Tool-Calling Utility (ETCU)</head><p>We thus introduce a parameterized metric, expected tool-calling utility, which approximates actual utility in situations where a calibrated confidence score p is used to decide of whether or not to execute a specific tool call generated by the language model. We assume we know the expected utility for each of the four possible outcomes: tp &gt; 0 (true positive), for when the agent executes a correctly predicted call; fp &lt; 0 (false positive), for when the agent executes an incorrectly predicted call; tn ≈ 0 (true negative), for when the agent avoids executing an incorrect call; fn ≈ 0 (false negative), for when the agent fails to execute a correct call. tn and fn may be slightly negative to account for time wasted making the unused prediction. fp may be highly negative, e.g., if the agent erroneously deletes all of the user's documents, makes a large unintended purchase, or sends an offensive email.</p><p>The exact values of tp, fp, tn, and fn will depend on the specific task that the agent must perform, and could be assigned by a domain expert or learned from data, like human preferences <ref type="bibr" target="#b7">(Christiano et al., 2017)</ref>. 4 Once these values have been assigned, the minimum Bayes risk (MBR; <ref type="bibr">Bickel and Doksum, 1977, p. 27</ref>) decision can be calculated; it is to execute the predicted tool call if and only if the estimated confidence p is above the threshold 4 They will also often depend on the predicted API and arguments. A more careful MBR practitioner would ideally condition on these and assign utilities to each possible pair (gold specific action, chosen specific action). Our coarser expectations {tp, fp, tn, fn} result in cruder decisions.</p><formula xml:id="formula_2">p &gt; τ def = tn -fp (tp -fn) + (tn -fp) (2)</formula><p>Calibration ensures that of all predicted tool calls with confidence ≈ p, about p are correct. The decision rule (2) makes either all such calls or none of them, according to whether the expected utility per call is higher with all (p tp+(1-p) fp) or with none (p fn + (1 -p) tn). The threshold τ is high (&gt; 0.5) if avoiding bad calls (benefit tnfp) is more important than executing good calls (benefit tpfn).</p><p>Normalizing: These four values can be scaled by any positive constant, and translated by any real constant, without affecting the optimal threshold or the utility (modulo that affine transform) <ref type="bibr" target="#b14">(Gleave et al., 2021)</ref>. That is, we can choose a measurement scale for our utilities (without loss of generality) such that tp = 1 and fn = 0. Two degrees of freedom still remain (tn and fp). In most toolusing scenarios, tn will be extremely close to fn, because in both cases the immediate action by the agent is the same (do not execute) and thus has the same effect regardless of the predicted action. <ref type="foot" target="#foot_4">5</ref>If we further assume (with loss of generality) that tn = fn = 0, the intuitive interpretation is that the agent gets 1 "credit" (an arbitrary utility unit) for completing its task, 0 credits for doing nothing (regardless of whether that was the best decision), and fp &lt; 0 credits for doing something wrong. The single remaining degree of freedom fp is the risk/utility ratio, defining how costly it is to attempt and fail. In this (slightly less general) case, the MBR decision rule (2) simplifies to:</p><formula xml:id="formula_3">p &gt; τ def = -fp 1 + -fp = fp fp -1<label>(3)</label></formula><p>Settings for expected tool-calling utility: To understand how confidence estimators perform at different risk levels, we choose three different values of fp under which to measure normalized risk (Table 1). Each setting of fp determines a threshold τ that the Bayes-optimal policy will use.</p><p>High Risk: Tasks where executing an incorrect tool call is much worse than the reverse error. We choose fp = -9 for this setting, giving τ = 0.9.</p><p>Medium Risk: For these tasks, executing an incorrect tool call is as bad as executing the correct tool call is good (fp = -tp = -1), giving τ = 0.5. Low Risk: These are tasks where executing an incorrect tool call has relatively low potential downside. We choose fp = -1 9 , giving τ = 0.1. Area Under Curve (AUC): More generally, we can compute an expected value for any τ ∈ (0, 1). This yields an "expected tool-calling utility" curve (Figure <ref type="figure">4</ref>) for a given confidence estimator on a given dataset. Any given applied setting may only be interested in a single τ along the curve. Still, to compare estimators overall, it may be useful to consolidate the curve into a single number, summarizing an estimator's performance across all risk levels. Taking inspiration from the area under the receiver operating characteristic (ROC) curve (Marcum, 1960), we take the average of the expected tool-calling utility values at every point along the curve, which can be regarded as the (signed) area under the curve (AUC). <ref type="foot" target="#foot_5">6</ref> Since our formulation sets tn = fn = 0, always abstaining gets a expected tool-calling utility score of 0 regardless of risk level, and thus an AUC of 0. Because utilities can be negative, AUC values can also be negative. This occurs when model is overconfident (due to poor calibration) in too many high-risk predictions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We now look at training MICE and using it at test time to measure both smooth expected calibration error (smECE) and expected tool-calling utility.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head><p>Our experiments use the simulated trial-and-error (STE) dataset <ref type="bibr" target="#b46">(Wang et al., 2024)</ref>. The dataset was synthetically generated by simulating plausible tool-using scenarios for a given API and using GPT3.5-turbo with execution feedback to identify (presumptively) correct tool calls.</p><p>The dataset consists of English-language queries that require calling 50 distinct APIs. For tool call generation, we few-shot prompt an off-the-shelf LLM with examples from a demonstration set consisting of 4,520 examples taken from the STE training set. An alternative would have been to fine-tune the LLM on this demonstration set.</p><p>To train MICE, we use the rest of the STE training set, split into a training set of 1500 examples (30 from each API) and a validation set of 750 examples (15 from each API). We then evaluate MICE on STE's test set of 750 examples. In all cases, we label a generated tool call as correct if and only if it exactly matches the one given by STE.</p><p>Figure <ref type="figure">4</ref>: Expected tool-calling utility on the test set at varying risk levels. We include four trivial policies for reference: oracle executes only when the underlying model is correct (an upper bound); always abstain never executes, getting reward 0; always execute never abstains; and the base rate policy switches from always execute to always abstain when the risk level exceeds the base accuracy. All policies perform similarly at low risk levels, where always execute is close to optimal and hard to improve on. MICE models show clear improvements in the medium and high risk regimes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">LLMs</head><p>We consider three LLMs: Llama3-8B-Instruct, Llama3.1-8B-Instruct, and Llama3.2-3B-Instruct <ref type="bibr" target="#b10">(Dubey et al., 2024)</ref>. We build and evaluate a separate MICE classifier for each LLM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Experimental Settings</head><p>We run each LLM on our validation and test sets in an 8-shot in-context learning setting, following <ref type="bibr" target="#b46">Wang et al. (2024)</ref>, using greedy decoding to generate the tool calls y. For each evaluation example, the 8 in-context learning examples are selected from our demonstration set according to the procedure of <ref type="bibr" target="#b46">Wang et al. (2024)</ref>, which computes similarity to the evaluation example using SentenceBERT <ref type="bibr" target="#b33">(Reimers and Gurevych, 2019)</ref>.</p><p>We train a baseline or MICE regressor on the training set to predict whether tool calls are correct, and use the validation set for hyperparameter and model selection. Features used by MICE regressors were described in §2. We then evaluate the regressor on the test set, using the metrics of §3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">MICE Configurations &amp; Baselines</head><p>Raw Confidence Our first baseline is the raw confidence score from §2, which can be used directly as a confidence estimate p. Recall that we defined this as i∈S p(w i |w &lt;i ), where S is the subset of token indices that are relevant to the tool call. S omits the tokens associated with formatting ("action:" and "action input:", which are generated for every tool call), and also omits tokens that are generated after the arguments of the tool call. We observed in initial experiments that including these irrelevant tokens resulted in worse calibration. We also observed that taking the minimum probability across generated tokens instead of the joint probability (as in <ref type="bibr" target="#b57">Zhou et al. (2022)</ref>; Stengel-Eskin and Van Durme (2023a)) resulted in little effective difference. Note that calculating raw confidence does not require any learning, so neither the training nor validation set is used. Raw confidence is also used as a base feature in the estimators described below.</p><p>Histogram Regression Estimator (HRE; <ref type="bibr" target="#b29">Nobel, 1996)</ref> For our second (stronger) baseline, we use a standard method to calibrate the previous baseline. We use the training set to construct a histogram binned by raw confidence scores. We use 25 bins: [0, 0.04), [0.04, 0.08), . . . , [0.96, 1.0]. To map from a raw confidence score c to a recalibrated estimate p, we look up c's bin, and return the percentage of examples in that bin that are correct. Note that this is the same histogram construction used to calculate traditional ECE (except here constructed on the training set), and so should be expected to perform well on ECE metrics.</p><p>Kernel Regressor (NWKR) Here, rather than using a histogram with fixed bins to recalibrate, we use Nadaraya-Watson kernel regression <ref type="bibr" target="#b25">(Nadaraya, 1964;</ref><ref type="bibr" target="#b50">Watson, 1964)</ref>, following the exact procedure <ref type="bibr" target="#b4">Błasiok and Nakkiran (2024)</ref> used to compute smECE. Analogously to above, since this follows the exact same procedure as in smECE, we should expect it to perform well under that metric. 7 MICE Models We extract features as described in §2, using DeBERTa-xlarge-mnli to compute the BERTScore features as it is the strongest BERTScore base model <ref type="bibr" target="#b17">(He et al., 2021)</ref>. This gives ℓ -1 BERTScore features along with the raw confidence feature. There are ℓ = 32 layers for Llama3 and 3.1 and 28 layers for Llama3.2.</p><p>MICE Logistic Regressor (MICE LR): We train a logistic regression model with an L2 regularization strength of 2 to predict whether the tool call is correct or not.</p><p>MICE Random Forest (MICE RF): We train a random forest classifier using 1000 trees each with a maximum depth of 20 and a maximum of 10 features to use at each split, using the Scikit-Learn package <ref type="bibr" target="#b31">(Pedregosa et al., 2011)</ref>. Other hyperparameters are set to defaults. This model is also trained to predict whether the tool call is correct. 8</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>Smooth Expected Calibration Error Lower smECE is better. The first numeric column of Table <ref type="table">1</ref> shows that all of the confidence estimators are well-calibrated-their smECE values are small and not significantly different-except for the raw confidences, which have smECEs 3-10x higher than the others. This is not surprising: HRE and NWKR are explicitly designed to calibrate the raw confidences, while logistic regression and random forest training are known to produce well-calibrated classifiers <ref type="bibr" target="#b28">(Niculescu-Mizil and Caruana, 2005)</ref>.</p><p>Expected Tool-Calling Utility Figure <ref type="figure">4</ref> shows the expected tool-calling utility curve for each confidence estimator and each model. We find that raw confidence performs dangerously poorly at and above moderate risk levels. HRE and NWKR both degrade quickly toward 0 as risk increases. The MICE models also degrade, but more slowly: matching performance of HRE and NWKR at the lower risk levels and outperforming at medium and 7 HRE and NWKR learn to map a single confidence input feature to a recalibrated output confidence. Any confidence estimator can be calibrated in this way on held-out data. Other common approaches to this problem include isotonic regression and Platt scaling ( §7).</p><p>8 Note that HRE and MICE LR use a similar number of parameters, but in HRE they are devoted to closer analysis (binning) of the raw confidence dimension, rather than to additional BERTScore dimensions. higher risk levels. Across all three LLMs, MICE RF performs best at nearly every risk level.</p><p>Table <ref type="table">1</ref> displays how well confidence estimators perform at three specific risk level settings (low, medium, and high) and across the full range of risk levels using AUC (see §3.2). For all of these metrics, a higher score is better. For each risk level, MICE RF always has the highest reward, outperforming HRE, NWKR, and MICE LR. Raw token confidence nearly always performs worst. For lower risk levels, most strategies perform comparably, with relatively high reward. This is expected: executing an incorrect tool call (fp) gives a low penalty relative to a correct tool (tp), so aggressively biasing for execution is optimal, garnering a high reward. As risk levels increase, the penalty for executing an incorrect tool call grows and using raw confidences nearly always incurs a negative reward when the risk level is greater than 0.5 (fp &lt; -1). Across the three risk levels, we find that the MICE models outperform both baselines for each of the three tool-calling LLM agents.</p><p>We run permutation tests for each metric in Table 1 for each MICE method as compared to HRE and NWKR. In summary, MICE RF is always significant (p-value &lt; 0.05) at the medium risk level, never significant at the low risk level, and significant at the high risk level for Llama3 and 3.1, but not 3.2. MICE LR outperforms the baselines, but is only significant for the medium risk level for Llama3.1. For the summary statistic AUC-ETCU, both MICE models are nearly always significantly better than HRE and NWKR for all three Llamas.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Zero-Shot Generalization to New APIs</head><p>To test MICE's out-of-domain generalization, we simulate encountering new APIs by holding one out during training. Since there are 50 APIs present in the STE dataset, we train 50 MICE RF and 50 MICE LR models. Each model is trained on data from 49 APIs and evaluated solely on the held-out API. We combine the predictions from each of the models to get predictions across the entire test set.<ref type="foot" target="#foot_6">9</ref> These confidence estimates are solely constructed by MICE models that have never seen that specific API before, so every tool is unseen. MICE does worse in this setting, but only degrades to the level of HRE and NWKR models trained on the full data; they are statistically indistinguishable from them. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Analysis</head><p>What is generated by decoding from intermediate layers? Here, we look at what the LLM generates from intermediary layers. Using the logit lens, we find that models slowly evolve their predictions throughout the layers to get closer to the final output generation. Figure <ref type="figure" target="#fig_1">2</ref> shows sample generations. Qualitatively, the first two-thirds of the layers tend to generate seemingly random strings. After this point, the generations get increasingly closer to the final generation, but significant refinement still occurs in the final layer.</p><p>The box-and-whisker plot in Figure <ref type="figure">3</ref> shows that BERTScore tends to increase with layer number. Figure <ref type="figure">8</ref> in Appendix A shows that at some layers, the distribution of BERTScores tends to be shifted slightly higher on correct outputs, providing signal to the classifier.</p><p>What is learned? To better understand how the MICE features are used, we examine our MICE models trained on the STE dataset with Llama3-8B-Instruct. For MICE RF we calculate Gini coefficients, and for MICE LR we analyze the feature weights, as suggested by reviewers. Figures <ref type="figure" target="#fig_2">5</ref> and<ref type="figure" target="#fig_3">6</ref> indicate that confidence is the most important feature in both MICE models: roughly 3 times as important as other features in MICE RF and 2 times as important as other features in MICE LR. 10 There is no obvious other pattern in the estimated weights, and it is possible that they are underdetermined.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Feature Ablations</head><p>To better understand which features contribute most to confidence estimation, we performed feature ablations for both MICE models for the three LLMs in our study. In addition to the original setting with all features, we tested four new settings: confidence only; 11 first 10 Perhaps calibrated confidence would have worked even better as a feature.</p><p>11 For LR, this is exactly Platt scaling with L2 regularization.  half of the layers' BERTScores plus confidence; second half of the layers' BERTScores plus confidence; and all of the layers' BERTScores, but no confidence. See Table <ref type="table">2</ref> in Appendix A for details. MICE RF: Confidence alone performed extremely poorly. The second half of the layers plus confidence performed better than the first half plus confidence, but using all layers without confidence performed worse than using half the layers with confidence. This suggests that features from the second half of the model are more useful than the first half, and confidence is an important feature.</p><p>MICE LR: Confidence alone performed comparably to other settings, indicating that confidence accounts for much of the performance; unlike RF, LR learned how to use this feature. Additionally, for Llama3 and 3.1, using confidence alone outperformed using all the layers' BERTScore features. Using the second half of the layers' BERTScore features outperformed using the first half of the layers' features, similar to MICE RF.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>How sample efficient is MICE?</head><p>To measure sample efficiency, we vary the size of the training set to be <ref type="bibr">25, 50, 75, 100, 300, 500, and 750.</ref> For each size, we randomly partition the 1,500 training examples into disjoint groups of that size (e.g., 15 groups of 100 examples, or 3 groups of 500 examples). We then train on each group, measure AUC-ETCU, and compute the mean and variance across groups. We repeat this 100 times and average across trials, plotting results in Figure <ref type="figure" target="#fig_4">7</ref>.</p><p>For dataset sizes of 150 or below NWKR performs best, but it saturates at this level and does not improve further with more data. MICE LR and HRE perform poorly with small datasets, but as size increases, they get closer to MICE RF and NWKR. For larger dataset sizes, MICE RF and MICE LR overtake NWKR. In fact, with as few as 300 examples (20% of the training data), MICE RF outperforms NWKR trained on the full dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Model Internals <ref type="bibr" target="#b44">Tenney et al. (2019)</ref> show that different layers of models encode different aspects of the classical NLP pipeline. Moreover, intermediate layer activations can be nudged via steering vectors to control output generations <ref type="bibr" target="#b40">(Subramani et al., 2019</ref><ref type="bibr" target="#b42">(Subramani et al., , 2022;;</ref><ref type="bibr" target="#b45">Turner et al., 2023)</ref>. The activation spaces of models are relatively well-formed and there exist directions in these latent spaces that correlate with interpretable properties <ref type="bibr" target="#b41">(Subramani and Suresh, 2020;</ref><ref type="bibr" target="#b21">Li et al., 2024)</ref>. These act as part of the basis for our hypothesis that the model internals could contain a trustworthiness signal, although we did not attempt to discover specific directions in these spaces.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Intermediate Decoding</head><p>We can view language models with multiple layers as doing iterative inference, where each successive layer refines the predictions of the previous layer. With this lens, decoding from intermediate layers provides signal albeit noisy: the first half of the layers generate uninterpretable text, but after this predictions refine toward a plausible answer <ref type="bibr" target="#b2">(Belrose et al., 2023;</ref><ref type="bibr" target="#b53">Yom Din et al., 2024;</ref><ref type="bibr" target="#b23">Merullo et al., 2024)</ref>. Other work has focused on inference efficiency by early exiting from transformers <ref type="bibr" target="#b43">(Teerapittayanon et al., 2017;</ref><ref type="bibr" target="#b13">Geva et al., 2022;</ref><ref type="bibr" target="#b36">Schuster et al., 2022;</ref><ref type="bibr" target="#b11">Elhoushi et al., 2024)</ref>. Our work decodes from intermediary layers as a signal for better calibration.</p><p>Calibration Prior work has measured the calibration of off-the-shelf models, including neural networks <ref type="bibr" target="#b28">(Niculescu-Mizil and Caruana, 2005;</ref><ref type="bibr" target="#b47">Wang, 2024)</ref>, large language models <ref type="bibr" target="#b19">(Kadavath et al., 2022;</ref><ref type="bibr">Yin et al., 2023)</ref>, and semantic parsers <ref type="bibr">(Stengel-Eskin and Van Durme, 2023a;</ref><ref type="bibr" target="#b57">Zhou et al., 2022)</ref>.</p><p>A line of machine learning work focuses on calibrating binary classifiers while conditioning only on their predicted confidence. Platt scaling transforms a real-valued output (like that of an SVM classifier) into probabilities using logistic regression <ref type="bibr" target="#b32">(Platt, 1999)</ref>, which is proven to be equivalent to beta calibration up to preprocessing <ref type="bibr" target="#b6">(Böken, 2021)</ref>. Isotonic regression <ref type="bibr" target="#b0">(Ayer et al., 1955)</ref> is a non-parametric approach that learns a best fit to data making only a monotonic non-decreasing assumption. HREs are popular, and there has been work on adaptive binning strategies <ref type="bibr" target="#b29">(Nobel, 1996)</ref>. We chose HRE and NWKR as strong baselines from this class of models. MICE LR could be viewed as an extension to Platt scaling because MICE conditions on model internals in addition to the original confidence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Applications of Well-Calibrated Confidences</head><p>The DidYouMean system can rephrase a query and ask for confirmation when the model is unconfident (Stengel-Eskin and Van Durme, 2023b). Like us, they frame the competing concerns in terms of safety and utility, weighing wrongly predicted actions against the cost of asking clarifying questions. While they tune a single confidence threshold, we transform confidences into calibrated probabilities so that a Bayes-optimal threshold can be dynamically derived for any risk/reward ratio. LA-CIE <ref type="bibr" target="#b37">(Stengel-Eskin et al., 2024)</ref> communicates its fine-tuned confidences to users. APEL <ref type="bibr" target="#b56">(Zhong et al., 2023)</ref> reduces its uncertainty about a semantic parse by asking questions of a user, using raw confidences to identify informative questions; calibrated confidences should work better, allowing it to finish with fewer questions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>In this work, we introduce model-internal confidence estimators (MICE), which improve the trustworthiness and safety of language models as toolcalling agents. We introduce a new metric, expected tool-calling utility, that combines calibration and usefulness to better evaluate the safety and utility of tool calls. We show that MICE matches or beats both regression baselines (HRE and NWKR) when measured by smooth ECE, and significantly improves expected tool-calling utility, especially in medium and high-risk regimes. Finally, we find that MICE is sample efficient and can generalize to unseen APIs in a zero-shot setting.</p><p>Like logit lens, MICE assumes transformer language model whose intermediate layers have the same shape as the final layer. More generally, MICE requires access to model internals, ruling out some of the most capable current LLMs, which are closed.</p><p>In principle, MICE is a general-purpose confidence estimation recipe for transformer language models. However, we evaluated MICE exclusively in one setting: a tool-calling task on one dataset. Other settings such as machine translation and question answering (see footnote 1) have been left to future experiments.</p><p>As footnote 3 hinted, there are many other possible ways to compute MICE features. We do not claim to have found the best variant even for the setting we studied. While we settled on BERTScore for this paper, there are several other possible choices for how to encode, align, compare, and aggregate the tokens at each layer. We remark that one possible encoding trick would be to learn a linear transform of each layer i so that h (i) t-1 is maximally similar to h (ℓ) t-1 or maximally predictive of y t , as in the tuned lens of <ref type="bibr" target="#b2">(Belrose et al., 2023)</ref>.</p><p>There are also various ways to build a classifier that uses MICE features. We also experimented with SVMs with different kernels (not reported). Other options could also be tried.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="10">Impact Statement</head><p>Better calibrated models can help people make safer decisions. We hope to bring increased focus to risk/reward tradeoffs; we have intentionally framed the task and metric in a way that highlights the cost of false positives. Decision theory and reward functions are not a substitute for careful design, however; practitioners must exercise great care before hooking up an LLM to a tool with real effects in the world, including taking care to set appropriate rewards such as tp, fp, tn, fn.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The MICE architecture.</figDesc><graphic coords="2,70.87,70.87,453.53,262.37" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Example generations from the validation set across layers of the Llama3-8B-Instruct model. Generations from early layers (5, 15) are seemingly random, but later layers (25, 31) generate thematically relevant tokens. Layer 32 is the final layer.</figDesc><graphic coords="3,70.87,70.86,218.27,179.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Feature importance for BERTScore features and confidence on the trained MICE RF model on the STE dataset for the Llama3 LLM.</figDesc><graphic coords="8,70.87,70.87,218.27,89.40" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Coefficients for the trained MICE LR model on the STE dataset for the Llama3 LLM.</figDesc><graphic coords="8,306.14,70.87,218.27,89.40" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Sample complexity: AUC of MICE models and HRE baselines as the size of the training set varies on the Llama3-8B-Instruct model. Error bars are one standard deviation.</figDesc><graphic coords="8,306.14,208.62,218.27,120.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="6,70.87,70.87,453.54,166.95" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="14,70.87,521.59,453.54,131.12" type="bitmap" /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>We train and test confidence estimators specifically on the generation of tool calls-a new setting for confidence estimation. However, MICE could equally well be applied to well-studied confidence estimation settings in NLP, such as machine translation(Blatz et al.,  </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_1"><p>2004;<ref type="bibr" target="#b20">Kumar and Sarawagi, 2019;</ref><ref type="bibr" target="#b48">Wang et al., 2020)</ref>, long-form generation<ref type="bibr" target="#b1">(Band et al., 2024)</ref>, and semantic parsing(Stengel-Eskin and Van Durme,  2023a).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_2"><p>Note that taking i = ℓ in (1) would recover y. Because the transformer uses residual connections, each layerwise encoding h (i)t-1 has the same dimensionality d, so multiplication by the unembedding matrix Woutis defined even when i &lt; ℓ. All of these vector-matrix products can be computed in parallel by a matrix-matrix product, H(i)  Wout where H (i) ∈ R ℓ×d .</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_3"><p>3 BERTScore reencodes the strings y and y(i)  with a separate model (see §4.4) and aligns their tokens. We found that the alignments were not always trivial. BERTscore performed significantly better than methods we explored initially, which compared the softmax(h(i)t-1 Wout) distributions rather than argmax-decoding single strings y(i)  . See §9 for other options.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>tn might differ from fn because subsequent actions may diverge, and each utility should ideally include the expected future reward over all possible rollouts. For example, it might be slightly easier to ask clarifying questions when the original prediction was correct (implying fn &gt; tn and raising τ ).</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>In practice, we approximate AUC by evaluating expected tool-calling utility at each τ ∈ {0.001, 0.002, . . . , 0.999}.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_6"><p>This resembles 50-fold cross validation, where each fold is constructed solely with data from one API. However, for comparability with other methods, we evaluate on the corresponding fold in the test set, not the training set.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"> <ref type="bibr" target="#b46">(Wang et al., 2024)</ref><p>. Lower smECE is better, while higher tool-calling utility is better. Bold indicates the best result in each category and underline indicates the second best result in each category. </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">An empirical distribution function for sampling with incomplete information</title>
+		<author>
+			<persName><forename type="first">Miriam</forename><forename type="middle">C</forename><surname>Ayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugh</forename><forename type="middle">D</forename><surname>Brunk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><forename type="middle">M</forename><surname>Ewing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">T</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Silverman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Annals of Mathematical Statistics</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="641" to="647" />
+			<date type="published" when="1955">1955</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Miriam C. Ayer, Hugh D. Brunk, George M. Ewing, W. T. Reid, and Edward Silverman. 1955. An empir- ical distribution function for sampling with incom- plete information. Annals of Mathematical Statistics, 26:641-647.</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Linguistic calibration of longform generations</title>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Band</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuechen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tengyu</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Hashimoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-first International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Neil Band, Xuechen Li, Tengyu Ma, and Tatsunori Hashimoto. 2024. Linguistic calibration of long- form generations. In Forty-first International Confer- ence on Machine Learning.</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Eliciting latent predictions from transformers with the tuned lens</title>
+		<author>
+			<persName><forename type="first">Nora</forename><surname>Belrose</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zach</forename><surname>Furman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Logan</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danny</forename><surname>Halawi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><forename type="middle">V</forename><surname>Ostrovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lev</forename><surname>Mckinney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stella</forename><surname>Biderman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Steinhardt</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2303.08112</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Nora Belrose, Zach Furman, Logan Smith, Danny Ha- lawi, Igor V. Ostrovsky, Lev McKinney, Stella Bi- derman, and Jacob Steinhardt. 2023. Eliciting latent predictions from transformers with the tuned lens. ArXiv, abs/2303.08112.</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Mathematical Statistics: Basic Ideas and Selected Topics</title>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Bickel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kjell</forename><surname>Doksum</surname></persName>
+		</author>
+		<idno type="DOI">10.2307/2286373</idno>
+		<imprint>
+			<date type="published" when="1977">1977</date>
+			<publisher>Holden-Day Inc</publisher>
+			<biblScope unit="volume">56</biblScope>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Peter Bickel and Kjell Doksum. 1977. Mathematical Statistics: Basic Ideas and Selected Topics., vol- ume 56. Holden-Day Inc.</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Smooth ECE: Principled reliability diagrams via kernel smoothing</title>
+		<author>
+			<persName><forename type="first">Jarosław</forename><surname>Błasiok</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Preetum</forename><surname>Nakkiran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Jarosław Błasiok and Preetum Nakkiran. 2024. Smooth ECE: Principled reliability diagrams via kernel smoothing. In The Twelfth International Conference on Learning Representations.</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Confidence estimation for machine translation</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Blatz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erin</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simona</forename><surname>Gandrabur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cyril</forename><surname>Goutte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Kulesza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Sanchis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Ueffing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING 2004: Proceedings of the 20th International Conference on Computational Linguistics</title>
+		<meeting><address><addrLine>Geneva, Switzerland. COLING</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="page" from="315" to="321" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">John Blatz, Erin Fitzgerald, George Foster, Simona Gan- drabur, Cyril Goutte, Alex Kulesza, Alberto Sanchis, and Nicola Ueffing. 2004. Confidence estimation for machine translation. In COLING 2004: Pro- ceedings of the 20th International Conference on Computational Linguistics, pages 315-321, Geneva, Switzerland. COLING.</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">On the appropriateness of Platt scaling in classifier calibration</title>
+		<author>
+			<persName><forename type="first">Björn</forename><surname>Böken</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/j.is.2020.101641</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Information Systems</title>
+		<imprint>
+			<biblScope unit="volume">95</biblScope>
+			<biblScope unit="page">101641</biblScope>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Björn Böken. 2021. On the appropriateness of Platt scaling in classifier calibration. Information Systems, 95:101641.</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Paul F Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miljan</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shane</forename><surname>Martic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Legg</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Amodei</surname></persName>
+		</author>
+		<title level="m">Deep reinforcement learning from human preferences. Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page">30</biblScope>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Paul F Christiano, Jan Leike, Tom Brown, Miljan Mar- tic, Shane Legg, and Dario Amodei. 2017. Deep reinforcement learning from human preferences. Ad- vances in Neural Information Processing Systems, 30.</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">The well-calibrated Bayesian</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">Philip</forename><surname>Dawid</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Statistical Association</title>
+		<imprint>
+			<biblScope unit="volume">77</biblScope>
+			<biblScope unit="page" from="605" to="610" />
+			<date type="published" when="1982">1982</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">A. Philip Dawid. 1982. The well-calibrated Bayesian. Journal of the American Statistical Association, 77:605-610.</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Calibration of pre-trained transformers</title>
+		<author>
+			<persName><forename type="first">Shrey</forename><surname>Desai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.emnlp-main.21</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="295" to="302" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Shrey Desai and Greg Durrett. 2020. Calibration of pre-trained transformers. In Proceedings of the 2020 Conference on Empirical Methods in Natural Lan- guage Processing (EMNLP), pages 295-302, Online. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Abhimanyu</forename><surname>Dubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Jauhri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Pandey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Kadian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmad</forename><surname>Al-Dahle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aiesha</forename><surname>Letman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akhil</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Schelten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21783</idno>
+		<title level="m">The Llama 3 herd of models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note type="raw_reference">Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Amy Yang, Angela Fan, et al. 2024. The Llama 3 herd of models. arXiv preprint arXiv:2407.21783.</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Elhoushi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshat</forename><surname>Shrivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diana</forename><surname>Liskovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Basil</forename><surname>Hosmer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bram</forename><surname>Wasti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangzhen</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anas</forename><surname>Mahmoud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bilge</forename><surname>Acun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Roman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.16710</idno>
+		<title level="m">Layer skip: Enabling early exit inference and self-speculative decoding</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note type="raw_reference">Mostafa Elhoushi, Akshat Shrivastava, Diana Liskovich, Basil Hosmer, Bram Wasti, Liangzhen Lai, Anas Mahmoud, Bilge Acun, Saurabh Agarwal, Ahmed Roman, et al. 2024. Layer skip: Enabling early exit inference and self-speculative decoding. arXiv preprint arXiv:2404.16710.</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Detecting hallucinations in large language models using semantic entropy</title>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Farquhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jannik</forename><surname>Kossen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorenz</forename><surname>Kuhn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<idno type="DOI">10.1038/s41586-024-07421-0</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">630</biblScope>
+			<biblScope unit="issue">8017</biblScope>
+			<biblScope unit="page" from="625" to="630" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Sebastian Farquhar, Jannik Kossen, Lorenz Kuhn, and Yarin Gal. 2024. Detecting hallucinations in large language models using semantic entropy. Nature, 630(8017):625-630.</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Transformer feed-forward layers build predictions by promoting concepts in the vocabulary space</title>
+		<author>
+			<persName><forename type="first">Mor</forename><surname>Geva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Caciularu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.emnlp-main.3</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2022 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Abu Dhabi</addrLine></address></meeting>
+		<imprint>
+			<publisher>United Arab Emirates. Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="30" to="45" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Mor Geva, Avi Caciularu, Kevin Wang, and Gold- berg. 2022. Transformer feed-forward layers build predictions by promoting concepts in the vocabulary space. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Process- ing, pages 30-45, Abu Dhabi, United Arab Emirates. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Quantifying differences in reward functions</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Gleave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shane</forename><surname>Dennis</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Legg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Stuart Russell</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2021-01">Jan Leike. 2021</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Adam Gleave, Michael D Dennis, Shane Legg, Stuart Russell, and Jan Leike. 2021. Quantifying differ- ences in reward functions. In International Confer- ence on Learning Representations.</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">On calibration of modern neural networks</title>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoff</forename><surname>Pleiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<idno>arxiv:1706.04599</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+	<note>cs</note>
+	<note type="raw_reference">Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q. Wein- berger. 2017. On calibration of modern neural net- works. Preprint, arxiv:1706.04599 [cs].</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">LLM-Rubric: A multidimensional, calibrated approach to automated evaluation of natural language texts</title>
+		<author>
+			<persName><forename type="first">Helia</forename><surname>Hashemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Corby</forename><surname>Rosset</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Kedzie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="13806" to="13834" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Helia Hashemi, Jason Eisner, Corby Rosset, Ben- jamin Van Durme, and Chris Kedzie. 2024. LLM- Rubric: A multidimensional, calibrated approach to automated evaluation of natural language texts. In Proceedings of the 62nd Annual Meeting of the Asso- ciation for Computational Linguistics (ACL), pages 13806-13834.</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Deberta: Decoding-enhanced bert with disentangled attention</title>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Pengcheng He, Xiaodong Liu, Jianfeng Gao, and Weizhu Chen. 2021. Deberta: Decoding-enhanced bert with disentangled attention. In International Conference on Learning Representations.</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">How can we know when language models know? On the calibration of language models for question answering</title>
+		<author>
+			<persName><forename type="first">Zhengbao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Araki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibo</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00407</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="962" to="977" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Zhengbao Jiang, Jun Araki, Haibo Ding, and Graham Neubig. 2021. How can we know when language models know? On the calibration of language models for question answering. Transactions of the Associa- tion for Computational Linguistics, 9:962-977.</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Language models(mostly) know what they know</title>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Conerly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Drain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Schiefer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zac</forename><surname>Hatfield-Dodds</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nova</forename><surname>Dassarma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eli</forename><surname>Tran-Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Johnston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheer</forename><surname>El-Showk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nelson</forename><surname>Elhage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tristan</forename><surname>Hume</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuntao</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stanislav</forename><surname>Fort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deep</forename><surname>Ganguli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danny</forename><surname>Hernandez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josh</forename><surname>Jacobson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackson</forename><surname>Kernion</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shauna</forename><surname>Kravec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liane</forename><surname>Lovitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamal</forename><surname>Ndousse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Catherine</forename><surname>Olsson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Ringer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Olah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2207.05221</idno>
+		<idno>ArXiv:2207.05221</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>cs</note>
+	<note type="raw_reference">Saurav Kadavath, Tom Conerly, Amanda Askell, Tom Henighan, Dawn Drain, Ethan Perez, Nicholas Schiefer, Zac Hatfield-Dodds, Nova DasSarma, Eli Tran-Johnson, Scott Johnston, Sheer El-Showk, Andy Jones, Nelson Elhage, Tristan Hume, Anna Chen, Yuntao Bai, Sam Bowman, Stanislav Fort, Deep Ganguli, Danny Hernandez, Josh Jacobson, Jackson Kernion, Shauna Kravec, Liane Lovitt, Ka- mal Ndousse, Catherine Olsson, Sam Ringer, Dario Amodei, Tom Brown, Jack Clark, Nicholas Joseph, Ben Mann, Sam McCandlish, Chris Olah, and Jared Kaplan. 2022. Language models(mostly) know what they know. arXiv preprint. ArXiv:2207.05221 [cs].</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Calibration of encoder decoder models for neural machine translation</title>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunita</forename><surname>Sarawagi</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1903.00802</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Aviral Kumar and Sunita Sarawagi. 2019. Calibration of encoder decoder models for neural machine trans- lation. ArXiv, abs/1903.00802.</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Inferencetime intervention: Eliciting truthful answers from a language model</title>
+		<author>
+			<persName><forename type="first">Kenneth</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oam</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fernanda</forename><surname>Viégas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanspeter</forename><surname>Pfister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Wattenberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="page">36</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Kenneth Li, Oam Patel, Fernanda Viégas, Hanspeter Pfister, and Martin Wattenberg. 2024. Inference- time intervention: Eliciting truthful answers from a language model. Advances in Neural Information Processing Systems, 36.</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A statistical theory of target detection by pulsed radar</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">I</forename><surname>Marcum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IRE Transactions on Information Theory</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="59" to="267" />
+			<date type="published" when="1960">1960</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">J.I. Marcum. 1960. A statistical theory of target detec- tion by pulsed radar. IRE Transactions on Informa- tion Theory, 6(2):59-267.</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Language models implement simple Word2Vec-style vector arithmetic</title>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Merullo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carsten</forename><surname>Eickhoff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.naacl-long.281</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Mexico City, Mexico</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="5030" to="5047" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+	<note type="raw_reference">Jack Merullo, Carsten Eickhoff, and Ellie Pavlick. 2024. Language models implement simple Word2Vec-style vector arithmetic. In Proceedings of the 2024 Con- ference of the North American Chapter of the Asso- ciation for Computational Linguistics: Human Lan- guage Technologies (Volume 1: Long Papers), pages 5030-5047, Mexico City, Mexico. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Reducing conversational agents&apos; overconfidence through linguistic calibration</title>
+		<author>
+			<persName><forename type="first">Sabrina</forename><forename type="middle">J</forename><surname>Mielke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Szlam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emily</forename><surname>Dinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y-Lan</forename><surname>Boureau</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00494</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="857" to="872" />
+		</imprint>
+	</monogr>
+	<note>Transactions of the Association for Computational Linguistics</note>
+	<note type="raw_reference">Sabrina J. Mielke, Arthur Szlam, Emily Dinan, and Y- Lan Boureau. 2022. Reducing conversational agents&apos; overconfidence through linguistic calibration. Trans- actions of the Association for Computational Linguis- tics, 10:857-872.</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">On estimating regression</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Elizbar</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nadaraya</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Theory of Probability &amp; Its Applications</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="141" to="142" />
+			<date type="published" when="1964">1964</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Elizbar A Nadaraya. 1964. On estimating regression. Theory of Probability &amp; Its Applications, 9(1):141- 142.</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Binary classifier calibration: Nonparametric approach</title>
+		<author>
+			<persName><forename type="first">Gregory</forename><forename type="middle">F</forename><surname>Mahdi Pakdaman Naeini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milos</forename><surname>Cooper</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hauskrecht</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1401.3390</idno>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Mahdi Pakdaman Naeini, Gregory F. Cooper, and Milos Hauskrecht. 2014. Binary classifier calibration: Non- parametric approach. ArXiv, abs/1401.3390.</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Obtaining well calibrated probabilities using bayesian binning</title>
+		<author>
+			<persName><forename type="first">Gregory</forename><forename type="middle">F</forename><surname>Mahdi Pakdaman Naeini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Milos</forename><surname>Cooper</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hauskrecht</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ... AAAI Conference on Artificial Intelligence. AAAI Conference on Artificial Intelligence</title>
+		<meeting>the ... AAAI Conference on Artificial Intelligence. AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2015">2015. 2015</date>
+			<biblScope unit="page" from="2901" to="2907" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Mahdi Pakdaman Naeini, Gregory F. Cooper, and Milos Hauskrecht. 2015. Obtaining well calibrated proba- bilities using bayesian binning. Proceedings of the ... AAAI Conference on Artificial Intelligence. AAAI Conference on Artificial Intelligence, 2015:2901- 2907.</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Predicting good probabilities with supervised learning</title>
+		<author>
+			<persName><forename type="first">Alexandru</forename><surname>Niculescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-Mizil</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rich</forename><surname>Caruana</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd International Conference on Machine Learning (ICML)</title>
+		<meeting>the 22nd International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Alexandru Niculescu-Mizil and Rich Caruana. 2005. Predicting good probabilities with supervised learn- ing. In Proceedings of the 22nd International Con- ference on Machine Learning (ICML).</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Histogram regression estimation using data-dependent partitions</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Nobel</surname></persName>
+		</author>
+		<idno type="DOI">10.1214/aos/1032526958</idno>
+	</analytic>
+	<monogr>
+		<title level="j">The Annals of Statistics</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="1084" to="1105" />
+			<date type="published" when="1996">1996</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Andrew Nobel. 1996. Histogram regression estima- tion using data-dependent partitions. The Annals of Statistics, 24(3):1084 -1105.</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Interpreting GPT: The logit lens</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>Blogpost</publisher>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">nostalgebraist. 2020. Interpreting GPT: The logit lens. Blogpost.</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Scikit-learn: Machine learning in Python</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pedregosa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Varoquaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gramfort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Thirion</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Grisel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blondel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Prettenhofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dubourg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Vanderplas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Passos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cournapeau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Brucher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Perrot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Duchesnay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2825" to="2830" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos, D. Cournapeau, M. Brucher, M. Perrot, and E. Duch- esnay. 2011. Scikit-learn: Machine learning in Python. Journal of Machine Learning Research, 12:2825-2830.</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods</title>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">C</forename><surname>Platt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Large Margin Classifiers</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="1999">1999</date>
+			<biblScope unit="page" from="61" to="74" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">John C. Platt. 1999. Probabilistic outputs for support vector machines and comparisons to regularized like- lihood methods. In Advances in Large Margin Clas- sifiers, pages 61-74. MIT Press.</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Sentence-BERT: Sentence embeddings using Siamese BERTnetworks</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/D19-1410</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</title>
+		<meeting>the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)<address><addrLine>Hong Kong, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3982" to="3992" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Nils Reimers and Iryna Gurevych. 2019. Sentence- BERT: Sentence embeddings using Siamese BERT- networks. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natu- ral Language Processing (EMNLP-IJCNLP), pages 3982-3992, Hong Kong, China. Association for Com- putational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">BenchCLAMP: A benchmark for evaluating language models on syntactic and mantic parsing</title>
+		<author>
+			<persName><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongfei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Pauls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Neural Information Processing Systems, NIPS &apos;23</title>
+		<meeting>the 37th International Conference on Neural Information Processing Systems, NIPS &apos;23<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Subhro Roy, Sam Thomson, Tongfei Chen, Richard Shin, Adam Pauls, Jason Eisner, and Benjamin Van Durme. 2024. BenchCLAMP: A benchmark for evaluating language models on syntactic and mantic parsing. In Proceedings of the 37th Interna- tional Conference on Neural Information Processing Systems, NIPS &apos;23, Red Hook, NY, USA. Curran Associates Inc.</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page">36</biblScope>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli, Eric Hambro, Luke Zettle- moyer, Nicola Cancedda, and Thomas Scialom. 2024. Toolformer: Language models can teach themselves to use tools. Advances in Neural Information Pro- cessing Systems, 36.</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tal</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jai</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dara</forename><surname>Bahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinh</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<title level="m">Confident adaptive language modeling. Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="17456" to="17472" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Tal Schuster, Adam Fisch, Jai Gupta, Mostafa Dehghani, Dara Bahri, Vinh Tran, Yi Tay, and Donald Metzler. 2022. Confident adaptive language modeling. Ad- vances in Neural Information Processing Systems, 35:17456-17472.</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">LACIE: Listener-aware finetuning for confidence calibration in large language models</title>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Stengel-Eskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Hase</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.21028</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+	<note type="raw_reference">Elias Stengel-Eskin, Peter Hase, and Mohit Bansal. 2024. LACIE: Listener-aware finetuning for confi- dence calibration in large language models. Preprint, arXiv:2405.21028.</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Calibrated interpretation: Confidence estimation in semantic parsing</title>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Stengel-Eskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00598</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="1213" to="1231" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Elias Stengel-Eskin and Benjamin Van Durme. 2023a. Calibrated interpretation: Confidence estimation in semantic parsing. Transactions of the Association for Computational Linguistics, 11:1213-1231.</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Confidence-based trade-offs in semantic parsing</title>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Stengel-Eskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.159</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="2621" to="2629" />
+		</imprint>
+	</monogr>
+	<note>2023b. Did you mean .</note>
+	<note type="raw_reference">Elias Stengel-Eskin and Benjamin Van Durme. 2023b. Did you mean . . . ? Confidence-based trade-offs in semantic parsing. In Proceedings of the 2023 Con- ference on Empirical Methods in Natural Language Processing, pages 2621-2629, Singapore.</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Can unconditional language models recover arbitrary sentences?</title>
+		<author>
+			<persName><forename type="first">Nishant</forename><surname>Subramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">32</biblScope>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Nishant Subramani, Samuel Bowman, and Kyunghyun Cho. 2019. Can unconditional language models re- cover arbitrary sentences? Advances in Neural Infor- mation Processing Systems, 32.</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nishant</forename><surname>Subramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nivedita</forename><surname>Suresh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2008.09049</idno>
+		<title level="m">Discovering useful sentence representations from large pretrained language models</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note type="raw_reference">Nishant Subramani and Nivedita Suresh. 2020. Dis- covering useful sentence representations from large pretrained language models. arXiv preprint arXiv:2008.09049.</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Extracting latent steering vectors from pretrained language models</title>
+		<author>
+			<persName><forename type="first">Nishant</forename><surname>Subramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nivedita</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Peters</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.findings-acl.48</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2022</title>
+		<meeting><address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="566" to="581" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Nishant Subramani, Nivedita Suresh, and Matthew Pe- ters. 2022. Extracting latent steering vectors from pretrained language models. In Findings of the Asso- ciation for Computational Linguistics: ACL 2022, pages 566-581, Dublin, Ireland. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">BranchyNet: Fast inference via early exiting from deep neural networks</title>
+		<author>
+			<persName><forename type="first">Bradley</forename><surname>Surat Teerapittayanon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">T</forename><surname>Mcdanel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kung</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.1709.01686</idno>
+		<idno>arxiv:1709.01686 [cs]. Version: 1</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+	<note type="raw_reference">Surat Teerapittayanon, Bradley McDanel, and H. T. Kung. 2017. BranchyNet: Fast inference via early exiting from deep neural networks. Preprint, arxiv:1709.01686 [cs]. Version: 1.</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">BERT rediscovers the classical NLP pipeline</title>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Tenney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/P19-1452</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 57th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Florence, Italy</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4593" to="4601" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Ian Tenney, Dipanjan Das, and Ellie Pavlick. 2019. BERT rediscovers the classical NLP pipeline. In Proceedings of the 57th Annual Meeting of the Asso- ciation for Computational Linguistics, pages 4593- 4601, Florence, Italy. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Alexander</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisa</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gavin</forename><surname>Thiergart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Leech</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><forename type="middle">J</forename><surname>Udell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ulisse</forename><surname>Vazquez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Monte</forename><surname>Mini</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Macdiarmid</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.10248</idno>
+		<title level="m">Activation addition: Steering language models without optimization</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note type="raw_reference">Alexander Matt Turner, Lisa Thiergart, Gavin Leech, David Udell, Juan J Vazquez, Ulisse Mini, and Monte MacDiarmid. 2023. Activation addition: Steer- ing language models without optimization. arXiv preprint arXiv:2308.10248.</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">LLMs in the imaginarium: Tool learning through simulated trial and error</title>
+		<author>
+			<persName><forename type="first">Boshi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.acl-long.570</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Bangkok, Thailand</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="10583" to="10604" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Boshi Wang, Hao Fang, Jason Eisner, Benjamin Van Durme, and Yu Su. 2024. LLMs in the imag- inarium: Tool learning through simulated trial and error. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Vol- ume 1: Long Papers), pages 10583-10604, Bangkok, Thailand. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Calibration in deep learning: A survey of the state-of-the-art</title>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.01222</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+	<note type="raw_reference">Cheng Wang. 2024. Calibration in deep learn- ing: A survey of the state-of-the-art. Preprint, arXiv:2308.01222.</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">On the inference calibration of neural machine translation</title>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuming</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.278</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Online. Association for Computational Linguistics</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3070" to="3079" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Shuo Wang, Zhaopeng Tu, Shuming Shi, and Yang Liu. 2020. On the inference calibration of neural machine translation. In Proceedings of the 58th Annual Meet- ing of the Association for Computational Linguistics, pages 3070-3079, Online. Association for Computa- tional Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">2021. seaborn: statistical data visualization</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Waskom</surname></persName>
+		</author>
+		<idno type="DOI">10.21105/joss.03021</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Open Source Software</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">60</biblScope>
+			<biblScope unit="page">3021</biblScope>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Michael L. Waskom. 2021. seaborn: statistical data visualization. Journal of Open Source Software, 6(60):3021.</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><forename type="middle">S</forename><surname>Watson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Smooth regression analysis</title>
+		<imprint>
+			<date type="published" when="1964">1964</date>
+			<biblScope unit="page" from="359" to="372" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Geoffrey S Watson. 1964. Smooth regression analysis. Sankhyā: The Indian Journal of Statistics, Series A, pages 359-372.</note>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<author>
+			<persName><forename type="first">Fanjia</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanzhi</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Cheng-Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<ptr target="https://gorilla.cs.berkeley.edu/blogs/8_berkeley_function_calling_leaderboard.html" />
+		<title level="m">Berkeley function calling leaderboard</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Fanjia Yan, Huanzhi Mao, Charlie Cheng- Jie Ji, Tianjun Zhang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. 2024. Berkeley function calling leaderboard. https://gorilla.cs.berkeley.edu/blogs/8_ berkeley_function_calling_leaderboard.html.</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Xipeng Qiu, and Xuanjing Huang. 2023. Do large language models know what they don&apos;t know?</title>
+		<author>
+			<persName><forename type="first">Zhangyue</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiushi</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qipeng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawen</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.findings-acl.551</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2023</title>
+		<meeting><address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="8653" to="8665" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Zhangyue Yin, Qiushi Sun, Qipeng Guo, Jiawen Wu, Xipeng Qiu, and Xuanjing Huang. 2023. Do large language models know what they don&apos;t know? In Findings of the Association for Computational Lin- guistics: ACL 2023, pages 8653-8665, Toronto, Canada. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Jump to conclusions: Shortcutting transformers with linear transformations</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Yom Din</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taelin</forename><surname>Karidi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leshem</forename><surname>Choshen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mor</forename><surname>Geva</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Joint International Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024)</title>
+		<meeting>the 2024 Joint International Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024)<address><addrLine>Torino, Italia</addrLine></address></meeting>
+		<imprint>
+			<publisher>ELRA and ICCL</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="9615" to="9625" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Alexander Yom Din, Taelin Karidi, Leshem Choshen, and Mor Geva. 2024. Jump to conclusions: Short- cutting transformers with linear transformations. In Proceedings of the 2024 Joint International Con- ference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024), pages 9615-9625, Torino, Italia. ELRA and ICCL.</note>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">BERTScore: Evaluating text generation with BERT</title>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Kishore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q. Weinberger, and Yoav Artzi. 2020. BERTScore: Evaluating text generation with BERT. In Proceed- ings of the International Conference on Learning Representations.</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">Calibrate before use: Improving few-shot performance of language models</title>
+		<author>
+			<persName><forename type="first">Tony</forename><forename type="middle">Z</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shi</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2102.09690</idno>
+		<idno type="arXiv">arXiv:2102.09690</idno>
+		<idno>arXiv. ArXiv:2102.09690 [cs] type: article</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical Report</note>
+	<note type="raw_reference">Tony Z. Zhao, Eric Wallace, Shi Feng, Dan Klein, and Sameer Singh. 2021. Calibrate before use: Improving few-shot performance of language mod- els. Technical Report arXiv:2102.09690, arXiv. ArXiv:2102.09690 [cs] type: article.</note>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Non-programmers can programs indirectly via active examples: A case study with text-to-SQL</title>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Snell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.312</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="5126" to="5152" />
+		</imprint>
+	</monogr>
+	<note type="raw_reference">Ruiqi Zhong, Charlie Snell, Dan Klein, and Jason Eis- ner. 2023. Non-programmers can programs indirectly via active examples: A case study with text-to-SQL. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Process- ing, pages 5126-5152, Singapore. Association for Computational Linguistics.</note>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Online semantic parsing for latency reduction in task-oriented dialogue</title>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Newman</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2022.acl-long.110</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 60th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1554" to="1576" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+	<note type="raw_reference">Jiawei Zhou, Jason Eisner, Michael Newman, Em- manouil Antonios Platanios, and Sam Thomson. 2022. Online semantic parsing for latency reduc- tion in task-oriented dialogue. In Proceedings of the 60th Annual Meeting of the Association for Compu- tational Linguistics (Volume 1: Long Papers), pages 1554-1576, Dublin, Ireland. Association for Compu- tational Linguistics.</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

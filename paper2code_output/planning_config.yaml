@@ -1,0 +1,11 @@
+## config.yaml
+training:
+  learning_rate: 0.001
+  batch_size: 32
+  epochs: 10
+evaluation:
+  smECE_smoothing: 0.1
+  ETCU_risk_levels:
+    low: -1
+    medium: -1
+    high: -9

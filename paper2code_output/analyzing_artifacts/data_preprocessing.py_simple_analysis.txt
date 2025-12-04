@@ -1,0 +1,61 @@
+ ### Data Preprocessing Logic for `data_preprocessing.py`
+
+To handle the preprocessing of the STE dataset, we need to ensure that the data is cleaned, transformed, and engineered appropriately for the subsequent model training and evaluation processes. The primary tasks in `data_preprocessing.py` will include:
+
+1. **Data Loading**: Load the STE dataset from the specified source.
+2. **Data Cleaning**: Remove any irrelevant information or inconsistencies.
+3. **Feature Engineering**: Create additional features based on the model's requirements.
+4. **Data Splitting**: Divide the dataset into training, validation, and test sets.
+5. **Data Normalization**: Scale numerical features if necessary.
+
+### Detailed Steps and Functions
+
+1. **Data Loading**:
+   - **Function**: `load_data(config)`
+     - **Input**: Configuration dictionary containing dataset path.
+     - **Output**: DataFrame containing the STE dataset.
+     - **Logic**: Use `pandas` to read the dataset from the specified path. Perform basic checks for data integrity and return the DataFrame.
+
+2. **Data Cleaning**:
+   - **Function**: `clean_data(df)`
+     - **Input**: DataFrame containing raw data.
+     - **Output**: Cleaned DataFrame.
+     - **Logic**: Handle missing values, remove duplicates, and ensure that the data is in a consistent format. Specific actions might include:
+       - Dropping rows with incomplete information.
+       - Removing outliers.
+       - Standardizing text data (e.g., converting to lowercase, removing special characters).
+
+3. **Feature Engineering**:
+   - **Function**: `engineer_features(df)`
+     - **Input**: Cleaned DataFrame.
+     - **Output**: DataFrame with additional engineered features.
+     - **Logic**: Extract relevant features based on the model's requirements, such as:
+       - BERTScore similarities between generated strings and preliminary strings from intermediate layers.
+       - Raw confidence scores from the model's output.
+       - Other features as specified in the paper, such as the similarity between generations and the final output.
+
+4. **Data Splitting**:
+   - **Function**: `split_data(df, config)`
+     - **Input**: DataFrame and configuration dictionary.
+     - **Output**: Tuple of DataFrames for training, validation, and test sets.
+     - **Logic**: Use `train_test_split` from `sklearn` to split the dataset into training, validation, and test sets based on the specified ratios.
+
+5. **Data Normalization**:
+   - **Function**: `normalize_data(train_df, val_df, test_df)`
+     - **Input**: DataFrames for training, validation, and test sets.
+     - **Output**: Normalized DataFrames.
+     - **Logic**: Scale numerical features to ensure that they are on a similar scale. This can be done using standard scaling techniques provided by `sklearn`.
+
+### Summary of Functions
+
+- `load_data(config)`: Load and return the STE dataset.
+- `clean_data(df)`: Clean the raw DataFrame.
+- `engineer_features(df)`: Create additional features for the model.
+- `split_data(df, config)`: Split the DataFrame into training, validation, and test sets.
+- `normalize_data(train_df, val_df, test_df)`: Normalize the features in the DataFrames.
+
+### Integration with Other Modules
+
+These functions will be integrated into the larger pipeline in `trainer.py` and `evaluation.py` to ensure that the data is correctly preprocessed before training and evaluation. The configuration file (`config.yaml`) will be used to set parameters such as the dataset path and feature engineering parameters.
+
+By following these steps, the `data_preprocessing.py` module will ensure that the STE dataset is prepared in a manner that is consistent with the requirements of the model architecture and evaluation metrics specified in the paper.
