@@ -252,19 +252,13 @@ def main():
     print("Training Confidence Estimators")
     print("=" * 60)
 
+    # Paper Section 4.4: All baseline and MICE estimators
+    # Note: For true zero-shot evaluation (leave-one-API-out), use run_zero_shot.py
     estimators = [
         RawConfidenceEstimator(),
         HistogramRegressionEstimator(num_bins=config.hre.num_bins),
         NadarayaWatsonKernelRegressor(),
-        MICELogisticRegression(C=config.mice.lr_C, zero_shot=True),
-        MICERandomForest(
-            n_estimators=config.mice.rf_n_estimators,
-            max_depth=config.mice.rf_max_depth,
-            max_features=config.mice.rf_max_features,
-            random_state=config.seed,
-            zero_shot=True,
-        ),
-        MICELogisticRegression(C=config.mice.lr_C),
+        MICELogisticRegression(C=config.mice.lr_C, random_state=config.seed),
         MICERandomForest(
             n_estimators=config.mice.rf_n_estimators,
             max_depth=config.mice.rf_max_depth,
