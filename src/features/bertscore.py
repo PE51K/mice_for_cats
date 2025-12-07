@@ -14,6 +14,8 @@ Paper Figure 3:
 strings y(i) from earlier layers"
 """
 
+import gc
+
 import torch
 from bert_score import score as bert_score
 
@@ -81,7 +83,15 @@ class BERTScoreComputer:
             device="cuda" if torch.cuda.is_available() else "cpu",
         )
 
-        return f1  # Shape: [num_layers-1]
+        # Move result to CPU and clean up to prevent VRAM accumulation
+        # The bert_score library can accumulate memory over many calls
+        result = f1.cpu().detach()
+        del _precision, _recall, f1
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        return result  # Shape: [num_layers-1]
 
     def compute_single(self, candidate: str, reference: str) -> float:
         """Compute BERTScore F1 for a single pair."""
@@ -98,4 +108,12 @@ class BERTScoreComputer:
             device="cuda" if torch.cuda.is_available() else "cpu",
         )
 
-        return f1[0].item()
+        result = f1[0].item()
+
+        # Clean up to prevent VRAM accumulation
+        del _precision, _recall, f1
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        return result

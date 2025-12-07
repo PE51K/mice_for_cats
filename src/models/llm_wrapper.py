@@ -211,10 +211,11 @@ class LLMWrapper:
             temperature=temperature if do_sample else None,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
+            use_cache=True,  # Use KV cache for efficiency during generation
         )
 
         # Extract generated portion (continuation after prompt)
-        generated_ids = outputs[0, input_ids.shape[1] :]
+        generated_ids = outputs[0, input_ids.shape[1] :].detach()
         generated_continuation = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
         # Check for stop sequences and truncate if found
@@ -242,7 +243,7 @@ class LLMWrapper:
             generated_ids: Generated token IDs [1, gen_len]
 
         Returns:
-            hidden_states: List of hidden states from each layer
+            hidden_states: List of hidden states from each layer (on CPU to save VRAM)
             logits: Final layer logits
         """
         # Combine input and generated for full forward pass
@@ -255,10 +256,14 @@ class LLMWrapper:
 
         # hidden_states is tuple of (num_layers + 1) tensors
         # Index 0 is embedding layer output, 1 to num_layers are transformer layers
-        hidden_states = outputs.hidden_states
-        logits = outputs.logits
+        # Move to CPU immediately to free VRAM - logit_lens will move back as needed
+        hidden_states = [h.detach().cpu() for h in outputs.hidden_states]
+        logits = outputs.logits.detach()
 
-        return list(hidden_states), logits
+        # Clear intermediate outputs to free VRAM
+        del outputs
+
+        return hidden_states, logits
 
     def get_lm_head(self) -> torch.nn.Module:
         """Get the language model head (unembedding matrix) for logit lens."""

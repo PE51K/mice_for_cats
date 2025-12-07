@@ -95,6 +95,9 @@ class LogitLensDecoder:
             )  # [gen_len]
             layer_logprobs.append(token_logprobs.cpu())
 
+            # Clean up intermediate GPU tensors to prevent VRAM accumulation
+            del layer_hidden, logits, log_probs, layer_tokens
+
         # Final output is from the last layer
         final_output = self.tokenizer.decode(generated_ids.squeeze(0), skip_special_tokens=True)
 
@@ -127,4 +130,8 @@ class LogitLensDecoder:
             log_probs.squeeze(0).gather(1, generated_ids.squeeze(0).unsqueeze(1)).squeeze(1)
         )
 
-        return token_logprobs.cpu()
+        # Move result to CPU and clean up GPU tensors
+        result = token_logprobs.cpu()
+        del final_hidden, logits, log_probs, token_logprobs
+
+        return result

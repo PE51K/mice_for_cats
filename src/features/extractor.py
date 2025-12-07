@@ -10,6 +10,7 @@ Features:
 2. Raw confidence (product of token probabilities)
 """
 
+import gc
 import importlib.util
 from collections.abc import Callable
 from pathlib import Path
@@ -167,11 +168,23 @@ class MICEFeatureExtractor:
                 parsed_input=parsed.get("action_input", ""),
             )
 
+        # Convert bertscore_features before cleanup
+        bertscore_features_np = (
+            bertscore_features.cpu().numpy()
+            if isinstance(bertscore_features, torch.Tensor)
+            else np.array(bertscore_features)
+        )
+
+        # Clean up large tensors to prevent VRAM accumulation
+        del hidden_states, input_ids, generated_ids, final_logprobs
+        del bertscore_features
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         return {
             "generated_text": full_generated_text,
-            "bertscore_features": bertscore_features.numpy()
-            if isinstance(bertscore_features, torch.Tensor)
-            else np.array(bertscore_features),
+            "bertscore_features": bertscore_features_np,
             "raw_confidence": raw_confidence,
             "is_correct": int(is_correct),
             "layer_outputs": layer_outputs,
@@ -319,6 +332,12 @@ class MICEFeatureExtractor:
             all_raw_confs.append(result["raw_confidence"])
             all_labels.append(result["is_correct"])
             all_generated.append(result["generated_text"])
+
+            # Periodic memory cleanup every 10 examples to prevent fragmentation
+            if (i + 1) % 10 == 0:
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
         # Print summary
         labels_arr = np.array(all_labels)
