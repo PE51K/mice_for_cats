@@ -12,6 +12,9 @@ Features:
 
 import json
 import re
+import sys
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -24,6 +27,19 @@ from ..models.llm_wrapper import LLMWrapper
 from ..models.logit_lens import LogitLensDecoder
 from .bertscore import BERTScoreComputer
 from .raw_confidence import RawConfidenceComputer
+
+STE_DIR = Path(__file__).parent.parent / "data" / "simulated-trial-and-error" / "STE"
+
+
+def _load_parse_response() -> Callable[..., Any]:
+    if str(STE_DIR) not in sys.path:
+        sys.path.append(str(STE_DIR))
+    from utils import parse_response  # type: ignore
+
+    return parse_response
+
+
+parse_response = _load_parse_response()
 
 
 class MICEFeatureExtractor:
@@ -155,14 +171,35 @@ class MICEFeatureExtractor:
         Paper: "we label a generated tool call as correct if and only if
         it exactly matches the one given by STE"
         """
-        gen_action = self._extract_action(generated).strip()
-        gen_input_str = self._extract_action_input(generated).strip()
+        parsed = parse_response(
+            generated,
+            API_name_list=[example.api_name],
+            api_descriptions=example.api_description,
+            proc_thought=False,
+            proc_toolken=False,
+            check_API_name=False,
+            ground_API=False,
+        )
 
-        # Reconstruct the tool call exactly as the gold format
-        generated_call = f"action: {gen_action}\naction_input: {gen_input_str}".strip()
-        gold_call = example.gold_tool_call.strip()
+        gen_action = parsed["action"] if parsed.get("parse_successful") else ""
+        gen_input_str = parsed["action_input"] if parsed.get("parse_successful") else ""
 
-        is_correct = generated_call == gold_call
+        if not parsed.get("parse_successful"):
+            is_correct = False
+        else:
+            # Strict string equality first
+            is_correct = (
+                gen_action == example.gold_action.strip()
+                and gen_input_str.strip() == example.gold_action_input.strip()
+            )
+            # Fallback to JSON semantic equality for action_input
+            if not is_correct:
+                try:
+                    gen_json = json.loads(gen_input_str)
+                    gold_json = json.loads(example.gold_action_input)
+                    is_correct = gen_action == example.gold_action.strip() and gen_json == gold_json
+                except json.JSONDecodeError:
+                    pass
 
         if debug:
             print(f"  [{'CORRECT' if is_correct else 'INCORRECT'}]")
@@ -218,79 +255,7 @@ class MICEFeatureExtractor:
         text = text.replace("action_input:", "action input:")
         return text.strip()
 
-    def _extract_action(self, text: str) -> str:
-        """Extract action name from generated text."""
-        text_lower = text.lower()
-        if "action:" in text_lower:
-            idx = text_lower.find("action:")
-            rest = text[idx + 7 :].strip()
-            # Take until newline or "action input"
-            end = rest.lower().find("action input")
-            if end == -1:
-                end = rest.find("\n")
-            if end == -1:
-                return rest.strip()
-            return rest[:end].strip()
-        return ""
-
-    def _extract_action_input(self, text: str) -> str:  # noqa: C901
-        """
-        Extract action input (JSON) from generated text.
-
-        Handles trailing explanations by finding the complete JSON object.
-        """
-        text_lower = text.lower()
-
-        # Find where action_input starts
-        start_idx = -1
-        if "action input:" in text_lower:
-            start_idx = text_lower.find("action input:") + 13
-        elif "action_input:" in text_lower:
-            start_idx = text_lower.find("action_input:") + 13
-
-        if start_idx == -1:
-            return ""
-
-        rest = text[start_idx:].strip()
-
-        # Find the JSON object - look for balanced braces
-        if not rest.startswith("{"):
-            # Maybe there's whitespace before the JSON
-            json_start = rest.find("{")
-            if json_start == -1:
-                return rest
-            rest = rest[json_start:]
-
-        # Extract balanced JSON object
-        brace_count = 0
-        json_end = 0
-        in_string = False
-        escape_next = False
-
-        for i, char in enumerate(rest):
-            if escape_next:
-                escape_next = False
-                continue
-            if char == "\\":
-                escape_next = True
-                continue
-            if char == '"' and not escape_next:
-                in_string = not in_string
-                continue
-            if in_string:
-                continue
-            if char == "{":
-                brace_count += 1
-            elif char == "}":
-                brace_count -= 1
-                if brace_count == 0:
-                    json_end = i + 1
-                    break
-
-        if json_end > 0:
-            return rest[:json_end].strip()
-
-        return rest.strip()
+    # _extract_action and _extract_action_input were replaced by STE parse_response usage
 
     def extract_batch(
         self,

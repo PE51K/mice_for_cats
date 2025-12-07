@@ -18,7 +18,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ..utils.auth import setup_hf_auth
 
-DEFAULT_PROMPT_PATH = (
+PROMPT_PATH = (
     Path(__file__).parent.parent
     / "data"
     / "simulated-trial-and-error"
@@ -26,47 +26,6 @@ DEFAULT_PROMPT_PATH = (
     / "prompts"
     / "prompt_template.txt"
 )
-
-PROMPT_TEMPLATE = dedent(
-    """
-    Your task is to answer the user's query as best you can.
-    You have access to the following tools which you can use via API call:
-
-    {api_descriptions}
-
-    The format you use the tools is by specifying
-    1) Action: the API function name you'd like to call
-    2) Action Input: the input parameters of the API call in a json string format.
-    The result of the API call will be returned starting with "Observation:".
-    Remember that you should only perform a SINGLE action at a time,
-    do NOT return a list of multiple actions.
-
-    Reminder:
-    1) the only values that should follow "Action:" are:
-    {api_names}
-
-    2) use the following json string format for the API arguments:
-
-    Action Input:
-    {{
-        "key_1": "value_1",
-        ...
-        "key_n": "value_n",
-    }}
-
-    Remember to ALWAYS use the following format:
-
-    User Query: the input user query that you need to respond to
-    Action: the API function name
-    Action Input: the input parameters of the API call in json string format
-    Observation: the return result of the API call
-    ... (this Action/Action Input/Observation can repeat N times)
-    Final Answer: the final answer to the original input question
-
-    Begin! Remember that once you have enough information, please immediately use
-    Final Answer:
-    """
-).strip()
 
 
 class LLMWrapper:
@@ -143,13 +102,8 @@ class LLMWrapper:
             api_description: API description for the tool
             demos: List of demonstration examples
         """
-        # Try to load STE prompt template from disk; fall back to bundled template.
-        prompt_template = PROMPT_TEMPLATE
-        if DEFAULT_PROMPT_PATH.exists():
-            try:
-                prompt_template = DEFAULT_PROMPT_PATH.read_text(encoding="utf-8").strip()
-            except OSError:
-                pass
+        # Load STE prompt template directly (no fallback).
+        prompt_template = PROMPT_PATH.read_text(encoding="utf-8").strip()
 
         # Build API descriptors from demos + current example
         api_entries: dict[str, str] = {}
@@ -175,7 +129,6 @@ class LLMWrapper:
                     Action: {demo.api_name}
                     Action Input: {demo.gold_action_input}
                     Final Answer:
-                    {demo.gold_tool_call}
                     """
                 ).strip()
             )
