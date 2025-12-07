@@ -12,7 +12,6 @@ Paper Results (Section 5):
 "Across all three LLMs, MICE RF performs best at nearly every risk level."
 """
 
-
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 
@@ -69,6 +68,7 @@ class MICERandomForest(BaseConfidenceEstimator):
 
     @property
     def name(self) -> str:
+        """Estimator name."""
         if self.zero_shot:
             return "MICE RF (zero-shot)"
         return "MICE RF"
@@ -90,7 +90,7 @@ class MICERandomForest(BaseConfidenceEstimator):
             raise ValueError("MICE RF requires raw_confidences as a feature")
 
         # Combine features: [BERTScores, raw_confidence]
-        X = np.column_stack([features, raw_confidences])
+        X = np.column_stack([features, raw_confidences])  # noqa: N806
 
         # Check if we have both classes
         unique_labels = np.unique(labels)
@@ -99,7 +99,8 @@ class MICERandomForest(BaseConfidenceEstimator):
             self._fallback_prob = float(labels.mean())
             self._use_fallback = True
             print(
-                f"  Warning: Only one class in training data, using fallback (p={self._fallback_prob})"
+                "  Warning: Only one class in training data, "
+                f"using fallback (p={self._fallback_prob})"
             )
             return self
 
@@ -128,7 +129,7 @@ class MICERandomForest(BaseConfidenceEstimator):
         if getattr(self, "_use_fallback", False):
             return np.full(len(raw_confidences), self._fallback_prob)
 
-        X = np.column_stack([features, raw_confidences])
+        X = np.column_stack([features, raw_confidences])  # noqa: N806
 
         # Return probability of class 1 (correct)
         return self.model.predict_proba(X)[:, 1]

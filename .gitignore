@@ -41,3 +41,5 @@ results/*.pkl
 
 # HuggingFace cache
 .cache/
+results_zero_shot/
+results/

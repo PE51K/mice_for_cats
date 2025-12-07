@@ -29,11 +29,17 @@ DEFAULT_PROMPT_PATH = (
 
 PROMPT_TEMPLATE = dedent(
     """
-    Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+    Your task is to answer the user's query as best you can.
+    You have access to the following tools which you can use via API call:
 
     {api_descriptions}
 
-    The format you use the tools is by specifying 1) Action: the API function name you'd like to call 2) Action Input: the input parameters of the API call in a json string format. The result of the API call will be returned starting with "Observation:". Remember that you should only perform a SINGLE action at a time, do NOT return a list of multiple actions.
+    The format you use the tools is by specifying
+    1) Action: the API function name you'd like to call
+    2) Action Input: the input parameters of the API call in a json string format.
+    The result of the API call will be returned starting with "Observation:".
+    Remember that you should only perform a SINGLE action at a time,
+    do NOT return a list of multiple actions.
 
     Reminder:
     1) the only values that should follow "Action:" are:

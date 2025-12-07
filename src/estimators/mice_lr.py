@@ -14,7 +14,6 @@ Paper Section 7:
 conditions on model internals in addition to the original confidence."
 """
 
-
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
@@ -30,13 +29,13 @@ class MICELogisticRegression(BaseConfidenceEstimator):
     - sklearn C parameter: 0.5 (C = 1/lambda)
 
     Features:
-    - BERTScore from each layer (ℓ-1 features)
+    - BERTScore from each layer (ell-1 features)
     - Raw confidence (1 feature)
     """
 
     def __init__(
         self,
-        C: float = 0.5,  # 1 / L2_strength = 1/2 = 0.5
+        C: float = 0.5,  # 1 / L2_strength = 1/2 = 0.5  # noqa: N803
         zero_shot: bool = False,
         random_state: int = 42,
     ):
@@ -58,6 +57,7 @@ class MICELogisticRegression(BaseConfidenceEstimator):
 
     @property
     def name(self) -> str:
+        """Estimator name."""
         if self.zero_shot:
             return "MICE LR (zero-shot)"
         return "MICE LR"
@@ -81,7 +81,7 @@ class MICELogisticRegression(BaseConfidenceEstimator):
             raise ValueError("MICE LR requires raw_confidences as a feature")
 
         # Combine features: [BERTScores, raw_confidence]
-        X = np.column_stack([features, raw_confidences])
+        X = np.column_stack([features, raw_confidences])  # noqa: N806
 
         # Check if we have both classes (required for LogisticRegression)
         unique_labels = np.unique(labels)
@@ -90,7 +90,8 @@ class MICELogisticRegression(BaseConfidenceEstimator):
             self._fallback_prob = float(labels.mean())
             self._use_fallback = True
             print(
-                f"  Warning: Only one class in training data, using fallback (p={self._fallback_prob})"
+                "  Warning: Only one class in training data, "
+                f"using fallback (p={self._fallback_prob})"
             )
             return self
 
@@ -121,7 +122,7 @@ class MICELogisticRegression(BaseConfidenceEstimator):
         if getattr(self, "_use_fallback", False):
             return np.full(len(raw_confidences), self._fallback_prob)
 
-        X = np.column_stack([features, raw_confidences])
+        X = np.column_stack([features, raw_confidences])  # noqa: N806
 
         # Return probability of class 1 (correct)
         return self.model.predict_proba(X)[:, 1]

@@ -33,12 +33,13 @@ dev = [
 [tool.ruff]
 target-version = "py313" # Target Python version
 line-length = 100 # Max line length
-exclude = [".venv"]
+exclude = [".venv", "data", "paper"]
 
 [tool.ruff.format]
 quote-style = "double" # Use double quotes for strings
 indent-style = "space" # Use spaces for indentation
 docstring-code-format = true # Format docstrings with code blocks
+exclude = [".venv", "data", "paper"]
 
 [tool.ruff.lint]
 select = [

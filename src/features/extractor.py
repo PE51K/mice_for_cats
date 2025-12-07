@@ -6,7 +6,7 @@ Paper Section 2:
 derived from model-internal activations."
 
 Features:
-1. BERTScore between final output and each intermediate layer's output (ℓ-1 features)
+1. BERTScore between final output and each intermediate layer's output (ell-1 features)
 2. Raw confidence (product of token probabilities)
 """
 
@@ -19,6 +19,7 @@ import torch
 from tqdm import tqdm
 
 from ..data.dataset import STEExample
+from ..data.demo_selector import DemoSelector
 from ..models.llm_wrapper import LLMWrapper
 from ..models.logit_lens import LogitLensDecoder
 from .bertscore import BERTScoreComputer
@@ -94,7 +95,7 @@ class MICEFeatureExtractor:
         )
 
         # Decode from all layers using logit lens
-        final_output, layer_outputs, layer_logprobs = self.logit_lens.decode_all_layers(
+        final_output, layer_outputs, _layer_logprobs = self.logit_lens.decode_all_layers(
             hidden_states=hidden_states,
             input_len=input_ids.shape[1],
             generated_ids=generated_ids,
@@ -232,7 +233,7 @@ class MICEFeatureExtractor:
             return rest[:end].strip()
         return ""
 
-    def _extract_action_input(self, text: str) -> str:
+    def _extract_action_input(self, text: str) -> str:  # noqa: C901
         """
         Extract action input (JSON) from generated text.
 
@@ -294,7 +295,7 @@ class MICEFeatureExtractor:
     def extract_batch(
         self,
         examples: list[STEExample],
-        demo_selector,
+        demo_selector: DemoSelector,
         max_new_tokens: int = 256,
         desc: str = "Extracting features",
         debug_first_n: int = 0,

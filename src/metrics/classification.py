@@ -4,7 +4,6 @@ Standard classification metrics for confidence estimators.
 Additional metrics beyond those in the paper for comprehensive evaluation.
 """
 
-
 import numpy as np
 from sklearn.metrics import (
     accuracy_score,

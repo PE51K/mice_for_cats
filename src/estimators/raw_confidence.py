@@ -12,7 +12,6 @@ Note: "calculating raw confidence does not require any learning, so neither
 the training nor validation set is used."
 """
 
-
 import numpy as np
 
 from .base import BaseConfidenceEstimator
@@ -31,6 +30,7 @@ class RawConfidenceEstimator(BaseConfidenceEstimator):
 
     @property
     def name(self) -> str:
+        """Estimator name."""
         return "Raw Confidence"
 
     def fit(

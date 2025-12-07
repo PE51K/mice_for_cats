@@ -13,7 +13,6 @@ we should expect it to perform well under that metric."
 Uses a reflected Gaussian kernel with automatic bandwidth selection.
 """
 
-
 import numpy as np
 from scipy.stats import norm
 
@@ -44,6 +43,7 @@ class NadarayaWatsonKernelRegressor(BaseConfidenceEstimator):
 
     @property
     def name(self) -> str:
+        """Estimator name."""
         return "NWKR"
 
     def _select_bandwidth(self, confidences: np.ndarray) -> float:

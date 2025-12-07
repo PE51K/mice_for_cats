@@ -75,4 +75,4 @@ def save_features(features: dict[str, Any], output_dir: Path, model_name: str, s
 def load_features(filepath: Path) -> dict[str, Any]:
     """Load features from pickle file."""
     with open(filepath, "rb") as f:
-        return pickle.load(f)
+        return pickle.load(f)  # noqa: S301

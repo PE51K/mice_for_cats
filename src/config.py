@@ -72,15 +72,13 @@ class ICLConfig:
 
 @dataclass
 class MICEConfig:
-    """
-    MICE model hyperparameters from paper Section 4.4.
-    """
+    """MICE model hyperparameters from paper Section 4.4."""
 
     # MICE Logistic Regression
     # Paper: "L2 regularization strength of 2"
     # Note: sklearn uses C = 1/lambda, so C = 0.5 for L2 strength of 2
     lr_l2_strength: float = 2.0
-    lr_C: float = 0.5  # 1 / lr_l2_strength
+    lr_C: float = 0.5  # 1 / lr_l2_strength  # noqa: N815
 
     # MICE Random Forest
     # Paper: "1000 trees each with a maximum depth of 20

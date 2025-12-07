@@ -15,7 +15,6 @@ we look up c's bin, and return the percentage of examples in that bin that are c
 well on ECE metrics."
 """
 
-
 import numpy as np
 
 from .base import BaseConfidenceEstimator
@@ -46,6 +45,7 @@ class HistogramRegressionEstimator(BaseConfidenceEstimator):
 
     @property
     def name(self) -> str:
+        """Human-readable estimator name."""
         return "HRE"
 
     def fit(
@@ -73,7 +73,7 @@ class HistogramRegressionEstimator(BaseConfidenceEstimator):
         self.bin_counts = np.zeros(self.num_bins)
 
         # Accumulate counts and correct predictions per bin
-        for conf, label in zip(raw_confidences, labels):
+        for conf, label in zip(raw_confidences, labels, strict=False):
             # Find bin index (handle edge case of conf=1.0)
             bin_idx = min(int(conf * self.num_bins), self.num_bins - 1)
             self.bin_counts[bin_idx] += 1

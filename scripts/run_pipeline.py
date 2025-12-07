@@ -34,7 +34,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Load .env before other imports that might need HF_TOKEN
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(project_root / ".env")
 
@@ -55,26 +55,26 @@ if not os.environ.get("HF_TOKEN"):
     sys.exit(1)
 
 # Import from src package
-from src.config import Config
-from src.data.dataset import STEDataset
-from src.data.demo_selector import DemoSelector
-from src.estimators import (
+from src.config import Config  # noqa: E402
+from src.data.dataset import STEDataset  # noqa: E402
+from src.data.demo_selector import DemoSelector  # noqa: E402
+from src.estimators import (  # noqa: E402
     HistogramRegressionEstimator,
     MICELogisticRegression,
     MICERandomForest,
     NadarayaWatsonKernelRegressor,
     RawConfidenceEstimator,
 )
-from src.features.extractor import MICEFeatureExtractor
-from src.metrics.classification import compute_classification_metrics
-from src.metrics.etcu import compute_all_etcu_metrics
-from src.metrics.smece import compute_smece
-from src.models.llm_wrapper import LLMWrapper
-from src.utils.io import load_features, save_features, save_results
-from src.utils.seed import set_all_seeds
+from src.features.extractor import MICEFeatureExtractor  # noqa: E402
+from src.metrics.classification import compute_classification_metrics  # noqa: E402
+from src.metrics.etcu import compute_all_etcu_metrics  # noqa: E402
+from src.metrics.smece import compute_smece  # noqa: E402
+from src.models.llm_wrapper import LLMWrapper  # noqa: E402
+from src.utils.io import load_features, save_features, save_results  # noqa: E402
+from src.utils.seed import set_all_seeds  # noqa: E402
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="MICE for CATs reproduction pipeline")
     parser.add_argument(

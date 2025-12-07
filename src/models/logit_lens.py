@@ -6,15 +6,14 @@ Paper Section 2:
 logit lens (nostalgebraist, 2020) and then computes similarity scores between
 each layer's generation and the final output."
 
-"We first decode the output string y at temperature 0. Then at each layer i < ℓ,
+"We first decode the output string y at temperature 0. Then at each layer i < ell,
 we obtain a preliminary output string y(i) of the same length by per-token
 argmax decoding:
     y_t^(i) = argmax(h_t-1^(i) @ W_out)
 where h_t-1^(i) is the model's layer-i encoding at the previous position,
-whose product with the unembedding matrix W_out ∈ R^{d×|V|} is a vector of
+whose product with the unembedding matrix W_out ∈ R^{d x |V|} is a vector of
 logits ∈ R^{|V|}."
 """
-
 
 import torch
 from transformers import AutoTokenizer
@@ -53,7 +52,7 @@ class LogitLensDecoder:
         """
         Decode from all intermediate layers using logit lens.
 
-        Paper: "This results in ℓ strings, where ℓ is the number of layers"
+        Paper: "This results in ell strings, where ell is the number of layers"
 
         Args:
             hidden_states: Hidden states from all layers (including embedding layer)

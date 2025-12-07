@@ -24,7 +24,6 @@ Execute tool call iff p > τ, where τ = -fp/(1-fp)
 Paper: "Higher expected tool-calling utility is better"
 """
 
-
 import numpy as np
 
 

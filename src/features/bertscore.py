@@ -14,7 +14,6 @@ Paper Figure 3:
 strings y(i) from earlier layers"
 """
 
-
 import torch
 from bert_score import score as bert_score
 
@@ -23,8 +22,8 @@ class BERTScoreComputer:
     """
     Compute BERTScore between final output and intermediate layer outputs.
 
-    Paper: "This gives ℓ-1 BERTScore features along with the raw confidence feature"
-    where ℓ is the number of layers.
+    Paper: "This gives ell-1 BERTScore features along with the raw confidence feature"
+    where ell is the number of layers.
     """
 
     def __init__(self, model_name: str = "microsoft/deberta-xlarge-mnli"):
@@ -74,7 +73,7 @@ class BERTScoreComputer:
 
         # Compute BERTScore
         # Returns Precision, Recall, F1
-        P, R, F1 = bert_score(
+        _precision, _recall, f1 = bert_score(
             cands,
             refs,
             model_type=self.model_name,
@@ -82,7 +81,7 @@ class BERTScoreComputer:
             device="cuda" if torch.cuda.is_available() else "cpu",
         )
 
-        return F1  # Shape: [num_layers-1]
+        return f1  # Shape: [num_layers-1]
 
     def compute_single(self, candidate: str, reference: str) -> float:
         """Compute BERTScore F1 for a single pair."""
@@ -91,7 +90,7 @@ class BERTScoreComputer:
         if not reference.strip() or not candidate.strip():
             return 0.0
 
-        P, R, F1 = bert_score(
+        _precision, _recall, f1 = bert_score(
             [candidate],
             [reference],
             model_type=self.model_name,
@@ -99,4 +98,4 @@ class BERTScoreComputer:
             device="cuda" if torch.cuda.is_available() else "cpu",
         )
 
-        return F1[0].item()
+        return f1[0].item()
