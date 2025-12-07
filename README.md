@@ -32,8 +32,6 @@ uv run python scripts/run_pipeline.py --model meta-llama/Llama-3.2-3B-Instruct
 # Debug run with limited samples
 uv run python scripts/run_pipeline.py --max_samples 50
 
-# Skip generation and use cached features
-uv run python scripts/run_pipeline.py --skip_generation
 ```
 
 ### Zero-Shot Evaluation (Paper Section 5)
@@ -51,7 +49,7 @@ uv run python scripts/run_zero_shot.py --apis WeatherAPI NewsAPI StockAPI
 uv run python scripts/run_zero_shot.py --model meta-llama/Llama-3.2-3B-Instruct
 ```
 
-**Note**: Zero-shot evaluation trains 50 separate models (one per held-out API) and can take significantly longer than standard evaluation.
+**Note**: Zero-shot evaluation trains 50 separate models (one per held-out API) and can take significantly longer than standard evaluation; feature extraction is regenerated each run (no caching).
 
 ## Results
 

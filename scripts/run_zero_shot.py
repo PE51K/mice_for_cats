@@ -49,7 +49,7 @@ from src.metrics.classification import compute_classification_metrics  # noqa: E
 from src.metrics.etcu import compute_all_etcu_metrics  # noqa: E402
 from src.metrics.smece import compute_smece  # noqa: E402
 from src.models.llm_wrapper import LLMWrapper  # noqa: E402
-from src.utils.io import load_features, save_features, save_results  # noqa: E402
+from src.utils.io import save_results  # noqa: E402
 from src.utils.seed import set_all_seeds  # noqa: E402
 
 
@@ -76,11 +76,6 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Specific APIs to evaluate (default: all 50 APIs)",
     )
-    parser.add_argument(
-        "--skip_generation",
-        action="store_true",
-        help="Skip generation and load cached features",
-    )
     return parser.parse_args()
 
 
@@ -91,7 +86,6 @@ def run_zero_shot_for_api(
     llm: LLMWrapper,
     feature_extractor: MICEFeatureExtractor,
     output_dir: Path,
-    skip_generation: bool = False,
 ) -> dict:
     """
     Run zero-shot evaluation for a single held-out API.
@@ -103,7 +97,7 @@ def run_zero_shot_for_api(
     print(f"{'=' * 60}")
 
     # Create splits with this API held out
-    demo_set, train_set, val_set, test_set = dataset.create_leave_one_api_out_splits(
+    demo_set, train_set, _val_set, test_set = dataset.create_leave_one_api_out_splits(
         held_out_api=api_name,
         demo_size=config.data.demo_set_size,
         samples_per_api_train=config.data.samples_per_api_train,
@@ -112,47 +106,36 @@ def run_zero_shot_for_api(
 
     print(
         f"Splits: demo={len(demo_set)}, train={len(train_set)}, "
-        f"val={len(val_set)}, test={len(test_set)} (all from {api_name})"
+        f"val={len(_val_set)}, test={len(test_set)} (all from {api_name})"
     )
 
     if len(test_set) == 0:
         print(f"WARNING: No test examples found for {api_name}, skipping")
         return None
 
-    # Feature extraction
-    model_name_clean = config.model.model_name.replace("/", "_")
-    features_dir = output_dir / "features" / api_name
-    features_dir.mkdir(parents=True, exist_ok=True)
+    # Feature extraction (regenerate every run)
+    print("Extracting features...")
+    demo_selector = DemoSelector(
+        demo_set,
+        model_name=config.icl.sentence_transformer_model,
+        num_shots=config.icl.num_shots,
+    )
 
-    if skip_generation:
-        print("Loading cached features...")
-        train_data = load_features(features_dir / f"features_{model_name_clean}_train.pkl")
-        test_data = load_features(features_dir / f"features_{model_name_clean}_test.pkl")
-    else:
-        print("Extracting features...")
-        demo_selector = DemoSelector(
-            demo_set,
-            model_name=config.icl.sentence_transformer_model,
-            num_shots=config.icl.num_shots,
-        )
+    print("  Processing training set (49 APIs)...")
+    train_data = feature_extractor.extract_batch(
+        train_set,
+        demo_selector,
+        max_new_tokens=config.max_new_tokens,
+        desc=f"Train ({api_name} held out)",
+    )
 
-        print("  Processing training set (49 APIs)...")
-        train_data = feature_extractor.extract_batch(
-            train_set,
-            demo_selector,
-            max_new_tokens=config.max_new_tokens,
-            desc=f"Train ({api_name} held out)",
-        )
-        save_features(train_data, features_dir, model_name_clean, "train")
-
-        print(f"  Processing test set ({api_name} only)...")
-        test_data = feature_extractor.extract_batch(
-            test_set,
-            demo_selector,
-            max_new_tokens=config.max_new_tokens,
-            desc=f"Test ({api_name})",
-        )
-        save_features(test_data, features_dir, model_name_clean, "test")
+    print(f"  Processing test set ({api_name} only)...")
+    test_data = feature_extractor.extract_batch(
+        test_set,
+        demo_selector,
+        max_new_tokens=config.max_new_tokens,
+        desc=f"Test ({api_name})",
+    )
 
     print(
         f"\n  Train accuracy: {train_data['labels'].mean():.2%} "
@@ -201,7 +184,7 @@ def run_zero_shot_for_api(
     }
 
 
-def main():  # noqa: C901
+def main():
     """Main zero-shot evaluation function."""
     args = parse_args()
 
@@ -235,13 +218,9 @@ def main():  # noqa: C901
     print(f"  APIs to evaluate: {len(apis_to_evaluate)}")
     print(f"  Output dir: {output_dir}")
 
-    # Initialize models (only if not skipping generation)
-    llm = None
-    feature_extractor = None
-    if not args.skip_generation:
-        print("\nInitializing models...")
-        llm = LLMWrapper(config.model.model_name)
-        feature_extractor = MICEFeatureExtractor(llm, bertscore_model=config.model.bertscore_model)
+    print("\nInitializing models...")
+    llm = LLMWrapper(config.model.model_name)
+    feature_extractor = MICEFeatureExtractor(llm, bertscore_model=config.model.bertscore_model)
 
     # Run zero-shot evaluation for each API
     all_results = []
@@ -253,7 +232,6 @@ def main():  # noqa: C901
             llm=llm,
             feature_extractor=feature_extractor,
             output_dir=output_dir,
-            skip_generation=args.skip_generation,
         )
         if result is not None:
             all_results.append(result)

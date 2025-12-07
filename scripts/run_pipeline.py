@@ -70,7 +70,7 @@ from src.metrics.classification import compute_classification_metrics  # noqa: E
 from src.metrics.etcu import compute_all_etcu_metrics  # noqa: E402
 from src.metrics.smece import compute_smece  # noqa: E402
 from src.models.llm_wrapper import LLMWrapper  # noqa: E402
-from src.utils.io import load_features, save_features, save_results  # noqa: E402
+from src.utils.io import save_results  # noqa: E402
 from src.utils.seed import set_all_seeds  # noqa: E402
 
 
@@ -90,11 +90,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument(
         "--output_dir", type=str, default="results", help="Output directory for results"
-    )
-    parser.add_argument(
-        "--skip_generation",
-        action="store_true",
-        help="Skip generation and load cached features",
     )
     parser.add_argument(
         "--max_samples",
@@ -162,67 +157,49 @@ def main():
             f"{len(val_set)} val, {len(test_set)} test samples"
         )
 
-    # Feature extraction
-    model_name_clean = config.model.model_name.replace("/", "_")
-    features_dir = output_dir / "features"
-    features_dir.mkdir(exist_ok=True)
+    # Feature extraction (always regenerate to match paper setup)
+    print("\n" + "=" * 60)
+    print("Initializing Models")
+    print("=" * 60)
 
-    if args.skip_generation:
-        # Load cached features
-        print("\n" + "=" * 60)
-        print("Loading Cached Features")
-        print("=" * 60)
+    llm = LLMWrapper(config.model.model_name)
+    demo_selector = DemoSelector(
+        demo_set,
+        model_name=config.icl.sentence_transformer_model,
+        num_shots=config.icl.num_shots,
+    )
+    feature_extractor = MICEFeatureExtractor(llm, bertscore_model=config.model.bertscore_model)
 
-        train_data = load_features(features_dir / f"features_{model_name_clean}_train.pkl")
-        val_data = load_features(features_dir / f"features_{model_name_clean}_val.pkl")
-        test_data = load_features(features_dir / f"features_{model_name_clean}_test.pkl")
-    else:
-        # Generate and extract features
-        print("\n" + "=" * 60)
-        print("Initializing Models")
-        print("=" * 60)
+    print("\n" + "=" * 60)
+    print("Extracting Features")
+    print("=" * 60)
 
-        llm = LLMWrapper(config.model.model_name)
-        demo_selector = DemoSelector(
-            demo_set,
-            model_name=config.icl.sentence_transformer_model,
-            num_shots=config.icl.num_shots,
-        )
-        feature_extractor = MICEFeatureExtractor(llm, bertscore_model=config.model.bertscore_model)
+    print("\nProcessing training set...")
+    train_data = feature_extractor.extract_batch(
+        train_set,
+        demo_selector,
+        max_new_tokens=config.max_new_tokens,
+        desc="Train",
+        debug_first_n=args.debug_examples,
+    )
 
-        print("\n" + "=" * 60)
-        print("Extracting Features")
-        print("=" * 60)
+    print("\nProcessing validation set...")
+    val_data = feature_extractor.extract_batch(
+        val_set,
+        demo_selector,
+        max_new_tokens=config.max_new_tokens,
+        desc="Val",
+        debug_first_n=args.debug_examples,
+    )
 
-        print("\nProcessing training set...")
-        train_data = feature_extractor.extract_batch(
-            train_set,
-            demo_selector,
-            max_new_tokens=config.max_new_tokens,
-            desc="Train",
-            debug_first_n=args.debug_examples,
-        )
-        save_features(train_data, features_dir, model_name_clean, "train")
-
-        print("\nProcessing validation set...")
-        val_data = feature_extractor.extract_batch(
-            val_set,
-            demo_selector,
-            max_new_tokens=config.max_new_tokens,
-            desc="Val",
-            debug_first_n=args.debug_examples,
-        )
-        save_features(val_data, features_dir, model_name_clean, "val")
-
-        print("\nProcessing test set...")
-        test_data = feature_extractor.extract_batch(
-            test_set,
-            demo_selector,
-            max_new_tokens=config.max_new_tokens,
-            desc="Test",
-            debug_first_n=args.debug_examples,
-        )
-        save_features(test_data, features_dir, model_name_clean, "test")
+    print("\nProcessing test set...")
+    test_data = feature_extractor.extract_batch(
+        test_set,
+        demo_selector,
+        max_new_tokens=config.max_new_tokens,
+        desc="Test",
+        debug_first_n=args.debug_examples,
+    )
 
     # Print dataset statistics
     print("\nDataset Statistics:")

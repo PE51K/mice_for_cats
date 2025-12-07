@@ -19,7 +19,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ..utils.auth import setup_hf_auth
 
 PROMPT_PATH = (
-    Path(__file__).parent.parent
+    Path(__file__).resolve().parent.parent.parent
     / "data"
     / "simulated-trial-and-error"
     / "STE"
@@ -128,6 +128,7 @@ class LLMWrapper:
                     User Query: {demo.query}
                     Action: {demo.api_name}
                     Action Input: {demo.gold_action_input}
+                    Observation:
                     Final Answer:
                     """
                 ).strip()
@@ -149,7 +150,7 @@ class LLMWrapper:
     @torch.no_grad()
     def generate(
         self, prompt: str, max_new_tokens: int = 256
-    ) -> tuple[str, torch.Tensor, torch.Tensor]:
+    ) -> tuple[str, str, torch.Tensor, torch.Tensor]:
         """
         Generate text with greedy decoding.
 
@@ -160,7 +161,8 @@ class LLMWrapper:
             max_new_tokens: Maximum tokens to generate
 
         Returns:
-            generated_text: Generated string
+            generated_continuation: Raw continuation after prompt
+            full_generated_text: Full tool call with "action: " prefix for parsing
             input_ids: Input token IDs
             generated_ids: Generated token IDs
         """
@@ -177,11 +179,15 @@ class LLMWrapper:
             eos_token_id=self.tokenizer.eos_token_id,
         )
 
-        # Extract generated portion
+        # Extract generated portion (continuation after prompt)
         generated_ids = outputs[0, input_ids.shape[1] :]
-        generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+        generated_continuation = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        return generated_text, input_ids, generated_ids.unsqueeze(0)
+        # Reconstruct full tool call with "action: " prefix for parsing
+        # The prompt ends with "Action:" so we prepend "action: " to the continuation
+        full_generated_text = f"action: {generated_continuation}"
+
+        return generated_continuation, full_generated_text, input_ids, generated_ids.unsqueeze(0)
 
     @torch.no_grad()
     def forward_with_hidden_states(

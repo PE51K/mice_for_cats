@@ -1,7 +1,6 @@
 """I/O utilities for saving and loading results."""
 
 import json
-import pickle
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -43,36 +42,3 @@ def load_results(filepath: Path) -> dict[str, Any]:
     """Load results from JSON file."""
     with open(filepath) as f:
         return json.load(f)
-
-
-def save_features(features: dict[str, Any], output_dir: Path, model_name: str, split: str) -> Path:
-    """
-    Save extracted features to pickle file for reuse.
-
-    Args:
-        features: Dictionary containing features, labels, etc.
-        output_dir: Directory to save to
-        model_name: Model name for filename
-        split: Dataset split name (train/val/test)
-
-    Returns:
-        Path to saved file
-    """
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    clean_name = model_name.replace("/", "_").replace("-", "_")
-    filename = f"features_{clean_name}_{split}.pkl"
-    filepath = output_dir / filename
-
-    with open(filepath, "wb") as f:
-        pickle.dump(features, f)
-
-    print(f"Features saved to {filepath}")
-    return filepath
-
-
-def load_features(filepath: Path) -> dict[str, Any]:
-    """Load features from pickle file."""
-    with open(filepath, "rb") as f:
-        return pickle.load(f)  # noqa: S301

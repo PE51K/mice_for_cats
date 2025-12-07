@@ -56,17 +56,11 @@ class RawConfidenceComputer:
         self._cache_exclude_tokens()
 
     def _cache_exclude_tokens(self):
-        """Cache token IDs for formatting strings to exclude."""
+        """Cache token IDs for formatting strings to exclude (paper logic only)."""
         self.exclude_token_ids: set[int] = set()
 
         for pattern in self.EXCLUDE_PATTERNS:
-            # Encode without special tokens
             tokens = self.tokenizer.encode(pattern, add_special_tokens=False)
-            self.exclude_token_ids.update(tokens)
-
-        # Also exclude common whitespace and newline tokens
-        for char in ["\n", " ", "  ", "\t"]:
-            tokens = self.tokenizer.encode(char, add_special_tokens=False)
             self.exclude_token_ids.update(tokens)
 
     def _find_tool_call_end(self, generated_text: str) -> int | None:  # noqa: C901
@@ -200,21 +194,4 @@ class RawConfidenceComputer:
         # Clamp to valid probability range
         return max(0.0, min(1.0, confidence))
 
-    def compute_from_generated_text(
-        self,
-        generated_text: str,
-        full_log_probs: torch.Tensor,
-        full_generated_ids: torch.Tensor,
-    ) -> float:
-        """
-        Alternative computation that identifies formatting tokens by text matching.
-
-        More robust but slower than token ID matching.
-        """
-        return self.compute(
-            full_generated_ids,
-            full_log_probs,
-            generated_text=generated_text,
-            mask_formatting=True,
-            truncate_post_args=True,
-        )
+    # compute_from_generated_text removed to keep only paper-specified pathway

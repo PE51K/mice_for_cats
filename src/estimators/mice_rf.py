@@ -92,19 +92,12 @@ class MICERandomForest(BaseConfidenceEstimator):
         # Combine features: [BERTScores, raw_confidence]
         X = np.column_stack([features, raw_confidences])  # noqa: N806
 
-        # Check if we have both classes
         unique_labels = np.unique(labels)
         if len(unique_labels) < 2:
-            # Fallback: predict constant probability equal to label mean
-            self._fallback_prob = float(labels.mean())
-            self._use_fallback = True
-            print(
-                "  Warning: Only one class in training data, "
-                f"using fallback (p={self._fallback_prob})"
+            raise ValueError(
+                "MICE RF requires both classes in training data; received a single class."
             )
-            return self
 
-        self._use_fallback = False
         self.model.fit(X, labels)
 
         return self
@@ -124,10 +117,6 @@ class MICERandomForest(BaseConfidenceEstimator):
         """
         if raw_confidences is None:
             raise ValueError("MICE RF requires raw_confidences as a feature")
-
-        # Handle fallback case (single class in training)
-        if getattr(self, "_use_fallback", False):
-            return np.full(len(raw_confidences), self._fallback_prob)
 
         X = np.column_stack([features, raw_confidences])  # noqa: N806
 

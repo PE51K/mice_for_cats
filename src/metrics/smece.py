@@ -90,37 +90,3 @@ def compute_smece(confidences: np.ndarray, labels: np.ndarray, num_points: int =
     smece = np.average(calibration_errors, weights=weights)
 
     return float(smece)
-
-
-def compute_ece(confidences: np.ndarray, labels: np.ndarray, num_bins: int = 15) -> float:
-    """
-    Compute traditional (binned) Expected Calibration Error for comparison.
-
-    Paper mentions ECE in Section 3.1 but uses smECE for evaluation.
-
-    Args:
-        confidences: Predicted confidence scores [n_samples]
-        labels: Binary correctness labels [n_samples]
-        num_bins: Number of histogram bins
-
-    Returns:
-        ece: Expected calibration error
-    """
-    bin_boundaries = np.linspace(0, 1, num_bins + 1)
-
-    ece = 0.0
-    total_samples = len(labels)
-
-    for i in range(num_bins):
-        # Find samples in this bin
-        in_bin = (confidences > bin_boundaries[i]) & (confidences <= bin_boundaries[i + 1])
-
-        if in_bin.sum() > 0:
-            # Average confidence in bin
-            avg_conf = confidences[in_bin].mean()
-            # Accuracy in bin
-            accuracy = labels[in_bin].mean()
-            # Weighted absolute difference
-            ece += (in_bin.sum() / total_samples) * abs(avg_conf - accuracy)
-
-    return float(ece)

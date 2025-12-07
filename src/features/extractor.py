@@ -10,9 +10,7 @@ Features:
 2. Raw confidence (product of token probabilities)
 """
 
-import json
-import re
-import sys
+import importlib.util
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -28,15 +26,20 @@ from ..models.logit_lens import LogitLensDecoder
 from .bertscore import BERTScoreComputer
 from .raw_confidence import RawConfidenceComputer
 
-STE_DIR = Path(__file__).parent.parent / "data" / "simulated-trial-and-error" / "STE"
+STE_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "simulated-trial-and-error" / "STE"
+)
 
 
 def _load_parse_response() -> Callable[..., Any]:
-    if str(STE_DIR) not in sys.path:
-        sys.path.append(str(STE_DIR))
-    from utils import parse_response  # type: ignore
-
-    return parse_response
+    """Load parse_response from the STE utils module via file path."""
+    utils_path = STE_DIR / "utils.py"
+    spec = importlib.util.spec_from_file_location("ste_utils", utils_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load spec for {utils_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.parse_response  # type: ignore[arg-type]
 
 
 parse_response = _load_parse_response()
@@ -101,7 +104,8 @@ class MICEFeatureExtractor:
         )
 
         # Generate tool call
-        generated_text, input_ids, generated_ids = self.llm.generate(
+        # Returns both raw continuation and full text with "action: " prefix for parsing
+        generated_continuation, full_generated_text, input_ids, generated_ids = self.llm.generate(
             prompt=prompt, max_new_tokens=max_new_tokens
         )
 
@@ -133,7 +137,7 @@ class MICEFeatureExtractor:
         raw_confidence = self.raw_conf.compute(
             generated_ids=generated_ids.squeeze(),
             log_probs=final_logprobs,
-            generated_text=generated_text,
+            generated_text=full_generated_text,
             mask_formatting=True,
             truncate_post_args=True,
         )
@@ -141,20 +145,22 @@ class MICEFeatureExtractor:
         # Check correctness (exact match with gold)
         # Paper: "we label a generated tool call as correct if and only if
         # it exactly matches the one given by STE"
-        is_correct = self._check_correctness(generated_text, example, debug=debug)
+        # Use full_generated_text (with "action: " prefix) for parsing
+        is_correct = self._check_correctness(full_generated_text, example, debug=debug)
 
         if debug:
             print(f"\n{'=' * 60}")
             print(f"Query: {example.query[:100]}...")
             print(f"API: {example.api_name}")
             print(f"\nGold tool call:\n{example.gold_tool_call}")
-            print(f"\nGenerated (raw):\n{generated_text[:500]}...")
+            print(f"\nGenerated (full with action prefix):\n{full_generated_text[:500]}...")
+            print(f"\nRaw continuation:\n{generated_continuation[:500]}...")
             print(f"\nRaw confidence: {raw_confidence:.6f}")
             print(f"Correct: {is_correct}")
             print(f"{'=' * 60}\n")
 
         return {
-            "generated_text": generated_text,
+            "generated_text": full_generated_text,
             "bertscore_features": bertscore_features.numpy()
             if isinstance(bertscore_features, torch.Tensor)
             else np.array(bertscore_features),
@@ -187,19 +193,10 @@ class MICEFeatureExtractor:
         if not parsed.get("parse_successful"):
             is_correct = False
         else:
-            # Strict string equality first
             is_correct = (
                 gen_action == example.gold_action.strip()
                 and gen_input_str.strip() == example.gold_action_input.strip()
             )
-            # Fallback to JSON semantic equality for action_input
-            if not is_correct:
-                try:
-                    gen_json = json.loads(gen_input_str)
-                    gold_json = json.loads(example.gold_action_input)
-                    is_correct = gen_action == example.gold_action.strip() and gen_json == gold_json
-                except json.JSONDecodeError:
-                    pass
 
         if debug:
             print(f"  [{'CORRECT' if is_correct else 'INCORRECT'}]")
@@ -216,46 +213,6 @@ class MICEFeatureExtractor:
             print(f"  Exact match: {is_correct}")
 
         return is_correct
-
-    def _compare_json_semantic(self, gen_str: str, gold_str: str) -> bool:
-        """
-        Compare two JSON strings semantically (ignore formatting).
-
-        Handles whitespace differences, key ordering, etc.
-        """
-        try:
-            # Parse both as JSON
-            gen_json = json.loads(gen_str)
-            gold_json = json.loads(gold_str)
-
-            # Compare parsed objects
-            return gen_json == gold_json
-        except json.JSONDecodeError:
-            # If parsing fails, fall back to normalized string comparison
-            gen_norm = self._normalize_json_string(gen_str)
-            gold_norm = self._normalize_json_string(gold_str)
-            return gen_norm == gold_norm
-
-    def _normalize_json_string(self, s: str) -> str:
-        """Normalize JSON string for comparison when parsing fails."""
-        # Remove all whitespace
-        s = re.sub(r"\s+", "", s)
-        # Lowercase
-        s = s.lower()
-        return s
-
-    def _normalize_tool_call(self, text: str) -> str:
-        """Normalize tool call for comparison."""
-        # Remove extra whitespace
-        text = " ".join(text.split())
-        # Lowercase
-        text = text.lower()
-        # Remove common variations
-        text = text.replace("action :", "action:")
-        text = text.replace("action_input:", "action input:")
-        return text.strip()
-
-    # _extract_action and _extract_action_input were replaced by STE parse_response usage
 
     def extract_batch(
         self,
