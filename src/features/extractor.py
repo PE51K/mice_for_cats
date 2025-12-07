@@ -152,17 +152,20 @@ class MICEFeatureExtractor:
         # Check correctness (exact match with gold)
         # Paper: "we label a generated tool call as correct if and only if
         # it exactly matches the one given by STE"
-        is_correct = self._check_correctness(full_generated_text, example, demos, debug=debug)
+        is_correct, parsed = self._check_correctness(
+            full_generated_text, example, demos, debug=debug
+        )
 
         if debug:
-            print(f"\n{'=' * 60}")
-            print(f"Query: {example.query[:100]}...")
-            print(f"API: {example.api_name}")
-            print(f"\nGold tool call:\n{example.gold_tool_call}")
-            print(f"\nGenerated text:\n{full_generated_text[:500]}...")
-            print(f"\nRaw confidence: {raw_confidence:.6f}")
-            print(f"Correct: {is_correct}")
-            print(f"{'=' * 60}\n")
+            self._print_debug_example(
+                example=example,
+                prompt=prompt,
+                generated_text=full_generated_text,
+                raw_confidence=raw_confidence,
+                is_correct=is_correct,
+                parsed_action=parsed.get("action", ""),
+                parsed_input=parsed.get("action_input", ""),
+            )
 
         return {
             "generated_text": full_generated_text,
@@ -177,7 +180,7 @@ class MICEFeatureExtractor:
 
     def _check_correctness(
         self, generated: str, example: STEExample, demos: list[STEExample], debug: bool = False
-    ) -> bool:
+    ) -> tuple[bool, dict]:
         """
         Check if generated output matches gold tool call.
 
@@ -210,24 +213,67 @@ class MICEFeatureExtractor:
                 and gen_input_str.strip() == example.gold_action_input.strip()
             )
 
-        if debug:
-            print(f"  Parse successful: {parsed.get('parse_successful')}")
-            if not parsed.get("parse_successful"):
-                print(f"  Parse error: {parsed.get('parse_error_msg', 'Unknown')}")
-            print(f"  [{'CORRECT' if is_correct else 'INCORRECT'}]")
-            print(f"  Gold action: '{example.gold_action.strip()}'")
-            print(f"  Gen action:  '{gen_action}'")
-            gold_preview = (
-                example.gold_action_input[:100] + "..."
-                if len(example.gold_action_input) > 100
-                else example.gold_action_input
-            )
-            gen_preview = gen_input_str[:100] + "..." if len(gen_input_str) > 100 else gen_input_str
-            print(f"  Gold input: '{gold_preview}'")
-            print(f"  Gen input:  '{gen_preview}'")
-            print(f"  Exact match: {is_correct}")
+        return is_correct, parsed
 
-        return is_correct
+    def _truncate_center(self, text: str, max_len: int = 200) -> str:
+        """Truncate text in the center if it exceeds max_len."""
+        if len(text) <= max_len:
+            return text
+        side_len = (max_len - 5) // 2  # 5 for " ... "
+        return text[:side_len] + " ... " + text[-side_len:]
+
+    def _print_debug_example(
+        self,
+        example: STEExample,
+        prompt: str,
+        generated_text: str,
+        raw_confidence: float,
+        is_correct: bool,
+        parsed_action: str,
+        parsed_input: str,
+    ) -> None:
+        """Print formatted debug information for an example."""
+        print(f"\n{'=' * 80}")
+        print(f"EXAMPLE DEBUG {'[CORRECT]' if is_correct else '[INCORRECT]'}")
+        print(f"{'=' * 80}")
+
+        # Query
+        print(f"\nQuery: {self._truncate_center(example.query, 150)}")
+        print(f"API: {example.api_name}")
+
+        # Input prompt (truncated at center)
+        print(f"\n{'-' * 80}")
+        print("INPUT TO MODEL (truncated):")
+        print(f"{'-' * 80}")
+        print(self._truncate_center(prompt, 500))
+
+        # Generated output (truncated at center)
+        print(f"\n{'-' * 80}")
+        print("MODEL OUTPUT (truncated):")
+        print(f"{'-' * 80}")
+        print(self._truncate_center(generated_text, 500))
+
+        # Gold tool call
+        print(f"\n{'-' * 80}")
+        print("GOLD TOOL CALL:")
+        print(f"{'-' * 80}")
+        print(f"Action: {example.gold_action}")
+        print(f"Action Input: {self._truncate_center(example.gold_action_input, 300)}")
+
+        # Extracted tool call
+        print(f"\n{'-' * 80}")
+        print("EXTRACTED TOOL CALL:")
+        print(f"{'-' * 80}")
+        print(f"Action: {parsed_action}")
+        print(f"Action Input: {self._truncate_center(parsed_input, 300)}")
+
+        # Metrics
+        print(f"\n{'-' * 80}")
+        print("METRICS:")
+        print(f"{'-' * 80}")
+        print(f"Raw Confidence: {raw_confidence:.6f}")
+        print(f"Match Result: {'✓ CORRECT' if is_correct else '✗ INCORRECT'}")
+        print(f"{'=' * 80}\n")
 
     def extract_batch(
         self,
@@ -276,10 +322,24 @@ class MICEFeatureExtractor:
 
         # Print summary
         labels_arr = np.array(all_labels)
+        raw_confs_arr = np.array(all_raw_confs)
+
+        print(f"\n{'=' * 80}")
+        print(f"BATCH SUMMARY: {desc}")
+        print(f"{'=' * 80}")
         print(
-            f"\n  Batch summary: {labels_arr.sum()}/{len(labels_arr)} correct "
+            f"Tool Call Accuracy: {labels_arr.sum()}/{len(labels_arr)} correct "
             f"({100 * labels_arr.mean():.1f}%)"
         )
+        print(f"Mean Raw Confidence: {raw_confs_arr.mean():.4f} ± {raw_confs_arr.std():.4f}")
+        print(
+            f"  Correct samples: {raw_confs_arr[labels_arr == 1].mean():.4f} (n={labels_arr.sum()})"
+        )
+        print(
+            f"  Incorrect samples: {raw_confs_arr[labels_arr == 0].mean():.4f} "
+            f"(n={(1 - labels_arr).sum()})"
+        )
+        print(f"{'=' * 80}\n")
 
         return {
             "features": np.array(all_features),

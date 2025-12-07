@@ -92,9 +92,9 @@ def run_zero_shot_for_api(
 
     Returns dictionary with metrics for this API.
     """
-    print(f"\n{'=' * 60}")
+    print(f"\n{'=' * 80}")
     print(f"Zero-Shot Evaluation: Held-Out API = {api_name}")
-    print(f"{'=' * 60}")
+    print(f"{'=' * 80}")
 
     # Create splits with this API held out
     demo_set, train_set, _val_set, test_set = dataset.create_leave_one_api_out_splits(
@@ -145,6 +145,14 @@ def run_zero_shot_for_api(
         f"  Test accuracy: {test_data['labels'].mean():.2%} "
         f"({test_data['labels'].sum()}/{len(test_data['labels'])} correct)"
     )
+    print(
+        f"  Train raw conf: {train_data['raw_confidences'].mean():.4f} "
+        f"± {train_data['raw_confidences'].std():.4f}"
+    )
+    print(
+        f"  Test raw conf: {test_data['raw_confidences'].mean():.4f} "
+        f"± {test_data['raw_confidences'].std():.4f}"
+    )
 
     # Train MICE models (only LR and RF for zero-shot)
     estimators = [
@@ -160,7 +168,9 @@ def run_zero_shot_for_api(
 
     results = {}
     for estimator in estimators:
-        print(f"\n  Training {estimator.name}...")
+        print(f"\n{'-' * 80}")
+        print(f"Training {estimator.name}...")
+        print(f"{'-' * 80}")
         estimator.fit(train_data["features"], train_data["labels"], train_data["raw_confidences"])
 
         test_confidences = estimator.predict_proba(
@@ -174,12 +184,17 @@ def run_zero_shot_for_api(
 
         results[estimator.name] = {"smece": smece, **etcu_metrics, **class_metrics}
 
-        print(f"    smECE: {smece:.4f}, ETCU AUC: {etcu_metrics['etcu_auc']:.4f}")
+        print(f"  Calibration (smECE): {smece:.4f}")
+        print(f"  Error Detection (ETCU AUC): {etcu_metrics['etcu_auc']:.4f}")
+        print(f"  Classification (ROC AUC): {class_metrics['roc_auc']:.4f}")
+        print(f"  Classification (F1): {class_metrics['f1']:.4f}")
 
     return {
         "api": api_name,
         "test_size": len(test_set),
         "test_accuracy": float(test_data["labels"].mean()),
+        "test_raw_confidence_mean": float(test_data["raw_confidences"].mean()),
+        "test_raw_confidence_std": float(test_data["raw_confidences"].std()),
         "results": results,
     }
 
@@ -237,9 +252,9 @@ def main():
             all_results.append(result)
 
     # Aggregate results
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 80)
     print("Aggregated Zero-Shot Results")
-    print("=" * 60)
+    print("=" * 80)
 
     # Combine predictions from all APIs
     combined_metrics = {"MICE LR (zero-shot)": [], "MICE RF (zero-shot)": []}
@@ -269,15 +284,27 @@ def main():
 
     # Print summary
     print(f"\nEvaluated {len(all_results)} APIs")
-    print(f"\n{'Estimator':<30} {'smECE':>12} {'ETCU AUC':>12} {'ROC AUC':>12}")
-    print("-" * 70)
+    print(f"\n{'-' * 80}")
+    print("Per-Estimator Performance (Mean ± Std across APIs):")
+    print(f"{'-' * 80}")
+    print(f"{'Estimator':<35} {'Calib':>12} {'ETCU AUC':>12} {'ROC AUC':>12} {'F1':>10}")
+    print(f"{'':35} {'(smECE)':>12} {'':>12} {'':>12} {'':>10}")
+    print("-" * 80)
     for name, metrics in aggregated_results.items():
         print(
-            f"{name:<30} "
-            f"{metrics['smece']['mean']:>12.4f} "
-            f"{metrics['etcu_auc']['mean']:>12.4f} "
-            f"{metrics['roc_auc']['mean']:>12.4f}"
+            f"{name:<35} "
+            f"{metrics['smece']['mean']:>7.4f}±{metrics['smece']['std']:<4.4f} "
+            f"{metrics['etcu_auc']['mean']:>7.4f}±{metrics['etcu_auc']['std']:<4.4f} "
+            f"{metrics['roc_auc']['mean']:>7.4f}±{metrics['roc_auc']['std']:<4.4f} "
+            f"{metrics['f1']['mean']:>5.4f}±{metrics['f1']['std']:<4.4f}"
         )
+    print("=" * 80)
+    print("\nNotes:")
+    print("  - Calib (smECE): Lower is better (well-calibrated)")
+    print("  - ETCU AUC: Higher is better (error detection)")
+    print("  - ROC AUC: Higher is better (classification)")
+    print("  - F1: Higher is better (classification)")
+    print("=" * 80)
 
     # Save results
     final_results = {
@@ -294,6 +321,18 @@ def main():
         },
         "per_api_results": all_results,
         "aggregated_results": aggregated_results,
+        "metric_descriptions": {
+            "smece": "Smoothed Expected Calibration Error (lower is better)",
+            "etcu_auc": "Error Detection AUC across all thresholds (higher is better)",
+            "etcu_low_risk": "Error detection at τ=0.9 (higher is better)",
+            "etcu_medium_risk": "Error detection at τ=0.5 (higher is better)",
+            "etcu_high_risk": "Error detection at τ=0.1 (higher is better)",
+            "roc_auc": "ROC AUC for correctness classification (higher is better)",
+            "precision": "Precision for correctness classification (higher is better)",
+            "recall": "Recall for correctness classification (higher is better)",
+            "f1": "F1 score for correctness classification (higher is better)",
+            "accuracy": "Accuracy for correctness classification @ 0.5 (higher is better)",
+        },
     }
 
     results_path = save_results(

@@ -202,12 +202,31 @@ def main():
     )
 
     # Print dataset statistics
-    print("\nDataset Statistics:")
+    print("\n" + "=" * 80)
+    print("DATASET STATISTICS")
+    print("=" * 80)
+    print("\nTool Call Accuracy (Exact Match):")
     print(
-        f"  Train: {len(train_data['labels'])} samples, {train_data['labels'].mean():.2%} accuracy"
+        f"  Train: {train_data['labels'].sum()}/{len(train_data['labels'])} = {train_data['labels'].mean():.2%}"
     )
-    print(f"  Val: {len(val_data['labels'])} samples, {val_data['labels'].mean():.2%} accuracy")
-    print(f"  Test: {len(test_data['labels'])} samples, {test_data['labels'].mean():.2%} accuracy")
+    print(
+        f"  Val:   {val_data['labels'].sum()}/{len(val_data['labels'])} = {val_data['labels'].mean():.2%}"
+    )
+    print(
+        f"  Test:  {test_data['labels'].sum()}/{len(test_data['labels'])} = {test_data['labels'].mean():.2%}"
+    )
+
+    print("\nRaw Confidence Statistics:")
+    print(
+        f"  Train: {train_data['raw_confidences'].mean():.4f} ± {train_data['raw_confidences'].std():.4f}"
+    )
+    print(
+        f"  Val:   {val_data['raw_confidences'].mean():.4f} ± {val_data['raw_confidences'].std():.4f}"
+    )
+    print(
+        f"  Test:  {test_data['raw_confidences'].mean():.4f} ± {test_data['raw_confidences'].std():.4f}"
+    )
+    print("=" * 80)
 
     # Initialize estimators
     print("\n" + "=" * 60)
@@ -233,20 +252,22 @@ def main():
     results = {}
 
     for estimator in estimators:
-        print(f"\n--- {estimator.name} ---")
+        print(f"\n{'=' * 80}")
+        print(f"ESTIMATOR: {estimator.name}")
+        print(f"{'=' * 80}")
 
         # Train on training data
-        print("  Training...")
+        print("Training...")
         estimator.fit(train_data["features"], train_data["labels"], train_data["raw_confidences"])
 
         # Predict on test set
-        print("  Predicting...")
+        print("Predicting on test set...")
         test_confidences = estimator.predict_proba(
             test_data["features"], test_data["raw_confidences"]
         )
 
         # Compute metrics
-        print("  Computing metrics...")
+        print("Computing metrics...")
         smece = compute_smece(test_confidences, test_data["labels"])
         etcu_metrics = compute_all_etcu_metrics(test_confidences, test_data["labels"])
         class_metrics = compute_classification_metrics(test_confidences, test_data["labels"])
@@ -254,13 +275,32 @@ def main():
         # Store results
         results[estimator.name] = {"smece": smece, **etcu_metrics, **class_metrics}
 
-        print("  Results:")
-        print(f"    smECE: {smece:.4f}")
-        print(f"    ETCU (τ=0.1): {etcu_metrics['etcu_low_risk']:.4f}")
-        print(f"    ETCU (τ=0.5): {etcu_metrics['etcu_medium_risk']:.4f}")
-        print(f"    ETCU (τ=0.9): {etcu_metrics['etcu_high_risk']:.4f}")
-        print(f"    ETCU AUC: {etcu_metrics['etcu_auc']:.4f}")
-        print(f"    ROC AUC: {class_metrics['roc_auc']:.4f}")
+        # Print detailed results
+        print(f"\n{'-' * 80}")
+        print("CALIBRATION METRICS:")
+        print(f"{'-' * 80}")
+        print(f"  smECE (Smoothed ECE):     {smece:.4f}")
+        print("  Lower is better for calibration")
+
+        print(f"\n{'-' * 80}")
+        print("ETCU METRICS (Error Detection @ Thresholds):")
+        print(f"{'-' * 80}")
+        print(f"  ETCU (τ=0.1, high conf):  {etcu_metrics['etcu_high_risk']:.4f}")
+        print(f"  ETCU (τ=0.5, medium):     {etcu_metrics['etcu_medium_risk']:.4f}")
+        print(f"  ETCU (τ=0.9, low conf):   {etcu_metrics['etcu_low_risk']:.4f}")
+        print(f"  ETCU AUC (overall):       {etcu_metrics['etcu_auc']:.4f}")
+        print("  Higher is better for error detection")
+
+        print(f"\n{'-' * 80}")
+        print("CLASSIFICATION METRICS (Confidence as Correctness Classifier):")
+        print(f"{'-' * 80}")
+        print(f"  ROC AUC:                  {class_metrics['roc_auc']:.4f}")
+        print(f"  Precision:                {class_metrics['precision']:.4f}")
+        print(f"  Recall:                   {class_metrics['recall']:.4f}")
+        print(f"  F1 Score:                 {class_metrics['f1']:.4f}")
+        print(f"  Accuracy @ 0.5 thresh:    {class_metrics['accuracy']:.4f}")
+        print("  Higher is better for classification")
+        print(f"{'=' * 80}")
 
     # Save results
     print("\n" + "=" * 60)
@@ -284,24 +324,55 @@ def main():
             "val_size": len(val_data["labels"]),
             "test_size": len(test_data["labels"]),
             "train_accuracy": float(train_data["labels"].mean()),
+            "val_accuracy": float(val_data["labels"].mean()),
             "test_accuracy": float(test_data["labels"].mean()),
+            "train_raw_confidence_mean": float(train_data["raw_confidences"].mean()),
+            "train_raw_confidence_std": float(train_data["raw_confidences"].std()),
+            "test_raw_confidence_mean": float(test_data["raw_confidences"].mean()),
+            "test_raw_confidence_std": float(test_data["raw_confidences"].std()),
         },
         "results": results,
+        "metric_descriptions": {
+            "smece": "Smoothed Expected Calibration Error (lower is better)",
+            "etcu_auc": "Error Detection AUC across all thresholds (higher is better)",
+            "etcu_low_risk": "Error detection at τ=0.9 (higher is better)",
+            "etcu_medium_risk": "Error detection at τ=0.5 (higher is better)",
+            "etcu_high_risk": "Error detection at τ=0.1 (higher is better)",
+            "roc_auc": "ROC AUC for correctness classification (higher is better)",
+            "precision": "Precision for correctness classification (higher is better)",
+            "recall": "Recall for correctness classification (higher is better)",
+            "f1": "F1 score for correctness classification (higher is better)",
+            "accuracy": "Accuracy for correctness classification @ 0.5 (higher is better)",
+        },
     }
 
     results_path = save_results(final_results, output_dir, config.model.model_name)
 
     # Print summary table
-    print("\n" + "=" * 60)
-    print("Results Summary (Test Set)")
-    print("=" * 60)
-    print(f"\n{'Estimator':<30} {'smECE':>8} {'ETCU(0.5)':>10} {'AUC':>8}")
-    print("-" * 60)
+    print("\n" + "=" * 80)
+    print("RESULTS SUMMARY (Test Set)")
+    print("=" * 80)
+    print(
+        f"\nTool Call Accuracy: {test_data['labels'].mean():.2%} ({test_data['labels'].sum()}/{len(test_data['labels'])})"
+    )
+    print(f"\n{'-' * 80}")
+    print("Confidence Estimator Performance:")
+    print(f"{'-' * 80}")
+    print(f"{'Estimator':<35} {'Calib':>10} {'ETCU AUC':>10} {'ROC AUC':>10} {'F1':>8}")
+    print(f"{'':35} {'(smECE)':>10} {'':>10} {'':>10} {'':>8}")
+    print("-" * 80)
     for name, metrics in results.items():
         print(
-            f"{name:<30} {metrics['smece']:>8.4f} "
-            f"{metrics['etcu_medium_risk']:>10.4f} {metrics['etcu_auc']:>8.4f}"
+            f"{name:<35} {metrics['smece']:>10.4f} "
+            f"{metrics['etcu_auc']:>10.4f} {metrics['roc_auc']:>10.4f} {metrics['f1']:>8.4f}"
         )
+    print("=" * 80)
+    print("\nNotes:")
+    print("  - Calib (smECE): Lower is better (well-calibrated)")
+    print("  - ETCU AUC: Higher is better (error detection)")
+    print("  - ROC AUC: Higher is better (classification)")
+    print("  - F1: Higher is better (classification)")
+    print("=" * 80)
 
     print(f"\nResults saved to: {results_path}")
     print("\nDone!")
