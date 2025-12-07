@@ -103,10 +103,17 @@ class MICEFeatureExtractor:
             query=example.query, api_description=example.api_description, demos=demos
         )
 
-        # Generate tool call
-        # Returns both raw continuation and full text with "action: " prefix for parsing
-        generated_continuation, full_generated_text, input_ids, generated_ids = self.llm.generate(
-            prompt=prompt, max_new_tokens=max_new_tokens
+        # Generate tool call - matching STE parameters (temp=1.0, stop="Observation:")
+        (
+            _generated_continuation,
+            full_generated_text,
+            input_ids,
+            generated_ids,
+        ) = self.llm.generate(
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=1.0,
+            stop_sequences=["Observation:"],
         )
 
         # Get hidden states from all layers
@@ -145,16 +152,14 @@ class MICEFeatureExtractor:
         # Check correctness (exact match with gold)
         # Paper: "we label a generated tool call as correct if and only if
         # it exactly matches the one given by STE"
-        # Use full_generated_text (with "action: " prefix) for parsing
-        is_correct = self._check_correctness(full_generated_text, example, debug=debug)
+        is_correct = self._check_correctness(full_generated_text, example, demos, debug=debug)
 
         if debug:
             print(f"\n{'=' * 60}")
             print(f"Query: {example.query[:100]}...")
             print(f"API: {example.api_name}")
             print(f"\nGold tool call:\n{example.gold_tool_call}")
-            print(f"\nGenerated (full with action prefix):\n{full_generated_text[:500]}...")
-            print(f"\nRaw continuation:\n{generated_continuation[:500]}...")
+            print(f"\nGenerated text:\n{full_generated_text[:500]}...")
             print(f"\nRaw confidence: {raw_confidence:.6f}")
             print(f"Correct: {is_correct}")
             print(f"{'=' * 60}\n")
@@ -170,25 +175,32 @@ class MICEFeatureExtractor:
             "gold_tool_call": example.gold_tool_call,
         }
 
-    def _check_correctness(self, generated: str, example: STEExample, debug: bool = False) -> bool:
+    def _check_correctness(
+        self, generated: str, example: STEExample, demos: list[STEExample], debug: bool = False
+    ) -> bool:
         """
         Check if generated output matches gold tool call.
 
+        Exactly matches STE's evaluation approach from test_gpt.py line 61.
         Paper: "we label a generated tool call as correct if and only if
         it exactly matches the one given by STE"
         """
-        parsed = parse_response(
-            generated,
-            API_name_list=[example.api_name],
-            api_descriptions=example.api_description,
-            proc_thought=False,
-            proc_toolken=False,
-            check_API_name=False,
-            ground_API=False,
+        # Build API_name_list and api_descriptions exactly as STE does
+        # This matches the format used in test_gpt.py lines 29-34
+        api_list = [example.api_name]
+
+        # Build the formatted api_descriptions string as in test_gpt.py line 33
+        api_descriptions_str = (
+            f"API_name: {example.api_name}\nDescription: {example.api_description}"
         )
 
-        gen_action = parsed["action"] if parsed.get("parse_successful") else ""
-        gen_input_str = parsed["action_input"] if parsed.get("parse_successful") else ""
+        # Call parse_response exactly as in test_gpt.py line 61
+        # Note: Default parameters match test_gpt.py (no explicit params passed)
+        parsed = parse_response(generated, api_list, api_descriptions_str)
+
+        # Use .get() to safely access keys that may not exist when parsing fails
+        gen_action = parsed.get("action", "")
+        gen_input_str = parsed.get("action_input", "")
 
         if not parsed.get("parse_successful"):
             is_correct = False
@@ -199,6 +211,9 @@ class MICEFeatureExtractor:
             )
 
         if debug:
+            print(f"  Parse successful: {parsed.get('parse_successful')}")
+            if not parsed.get("parse_successful"):
+                print(f"  Parse error: {parsed.get('parse_error_msg', 'Unknown')}")
             print(f"  [{'CORRECT' if is_correct else 'INCORRECT'}]")
             print(f"  Gold action: '{example.gold_action.strip()}'")
             print(f"  Gen action:  '{gen_action}'")

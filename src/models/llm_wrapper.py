@@ -10,7 +10,6 @@ and Llama3.2-3B-Instruct"
 """
 
 from pathlib import Path
-from textwrap import dedent
 from typing import Any
 
 import torch
@@ -90,91 +89,126 @@ class LLMWrapper:
         )
 
     def format_prompt(self, query: str, api_description: str, demos: list[Any]) -> str:
-        """
+        r"""
         Format input prompt with demonstrations.
 
-        Mirrors the STE prompt template used in the dataset for tool-calling,
-        inserting API descriptions/names and providing in-context examples
-        formatted with Action / Action Input / Final Answer blocks.
+        Exactly matches the STE prompt format from test_gpt.py lines 35-58.
+        Uses the prompt template with API descriptions formatted as:
+        "API_name: {name}\nDescription: {desc}"
 
         Args:
             query: User query
             api_description: API description for the tool
             demos: List of demonstration examples
         """
-        # Load STE prompt template directly (no fallback).
+        # Load STE prompt template directly
         prompt_template = PROMPT_PATH.read_text(encoding="utf-8").strip()
 
-        # Build API descriptors from demos + current example
+        # Build API list - collect all unique APIs from demos + current example
+        # STE groups by API, we need to build the full API list
         api_entries: dict[str, str] = {}
-        for ex in demos:
-            api_entries[ex.api_name] = ex.api_description
-        if demos:
-            api_entries.setdefault(demos[0].api_name, api_description)
-        else:
-            api_entries.setdefault("API", api_description)
-        api_desc_text = "\n".join([f"{name}: {desc}" for name, desc in api_entries.items()])
-        api_names_text = ", ".join(api_entries.keys())
 
-        header = prompt_template.format(api_descriptions=api_desc_text, api_names=api_names_text)
-
-        # Format demonstrations using the Action / Action Input style from STE
-        demo_blocks = []
-        for i, demo in enumerate(demos, 1):
-            demo_blocks.append(
-                dedent(
-                    f"""
-                    Example {i}:
-                    User Query: {demo.query}
-                    Action: {demo.api_name}
-                    Action Input: {demo.gold_action_input}
-                    Observation:
-                    Final Answer:
-                    """
-                ).strip()
+        # Add current example's API
+        if demos and hasattr(demos[0], "api_name"):
+            api_entries[demos[0].api_name] = (
+                demos[0].api_description
+                if hasattr(demos[0], "api_description")
+                else api_description
             )
 
-        demos_text = "\n\n".join(demo_blocks)
+        # Add all demo APIs
+        for ex in demos:
+            if hasattr(ex, "api_name") and hasattr(ex, "api_description"):
+                api_entries[ex.api_name] = ex.api_description
 
-        # Current query block to elicit the tool call
-        current_block = dedent(
-            f"""
-            User Query: {query}
-            Action:
-            """
-        ).strip()
+        # Format API descriptions exactly as STE does (lines 33-34 in test_gpt.py)
+        api_descriptions = "\n\n".join(
+            [f"API_name: {api_name}\nDescription: {desc}" for api_name, desc in api_entries.items()]
+        )
 
-        prompt_parts = [header, demos_text, current_block]
-        return "\n\n".join(part for part in prompt_parts if part)
+        # Format API names list (line 38 in test_gpt.py)
+        api_names = "\n".join(api_entries.keys())
+
+        # Format the header using the template (line 38)
+        prompt = prompt_template.format(api_descriptions=api_descriptions, api_names=api_names)
+
+        # Add demonstrations if in ICL setting (lines 52-58 in test_gpt.py)
+        if demos and len(demos) > 0:
+            demo_blocks = []
+            for demo in demos:
+                # Format exactly as: "User Query: {}\nAction: {}\nAction Input: {}\n"
+                demo_blocks.append(
+                    f"User Query: {demo.query}\nAction: {demo.gold_action}\nAction Input: {demo.gold_action_input}\n"
+                )
+
+            prompt = (
+                prompt
+                + "\n\nBelow are some examples:\n\n"
+                + "---\n".join(demo_blocks)
+                + "Now it's your turn.\n\nUser Query: "
+                + query
+            )
+        else:
+            # Default setting (line 53)
+            prompt = prompt + "\n\nUser Query: " + query
+
+        return prompt
 
     @torch.no_grad()
     def generate(
-        self, prompt: str, max_new_tokens: int = 256
+        self,
+        prompt: str,
+        max_new_tokens: int = 256,
+        temperature: float = 1.0,
+        stop_sequences: list[str] | None = None,
     ) -> tuple[str, str, torch.Tensor, torch.Tensor]:
         """
-        Generate text with greedy decoding.
+        Generate text matching STE generation parameters.
 
-        Paper Section 4.3: "using greedy decoding to generate the tool calls y"
+        STE uses OpenAI chat API with messages format (my_llm.py lines 38-42):
+        - System message: "You are a helpful assistant."
+        - User message: prompt
+        We replicate this with Llama's chat template.
 
         Args:
             prompt: Input prompt
-            max_new_tokens: Maximum tokens to generate
+            max_new_tokens: Maximum tokens to generate (STE default: 256)
+            temperature: Sampling temperature (STE default: 1.0)
+            stop_sequences: Stop at these sequences (STE default: ["Observation:"])
 
         Returns:
             generated_continuation: Raw continuation after prompt
-            full_generated_text: Full tool call with "action: " prefix for parsing
+            full_generated_text: Generated text for parsing (matches STE format)
             input_ids: Input token IDs
             generated_ids: Generated token IDs
         """
-        # Tokenize input
-        inputs = self.tokenizer(prompt, return_tensors="pt")
+        # Wrap prompt in chat template to match STE's OpenAI chat format
+        # STE: messages = [{"role": "system", ...}, {"role": "user", "content": prompt}]
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt},
+        ]
+
+        # Apply chat template
+        formatted_prompt = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
+        # Tokenize
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt")
         input_ids = inputs.input_ids.to(self.model.device)
 
-        # Generate with greedy decoding (temperature=0 equivalent)
+        # Set stop sequences - default to STE's "Observation:"
+        if stop_sequences is None:
+            stop_sequences = ["Observation:"]
+
+        # Generate with sampling to match STE (temp=1.0 in test_gpt.py line 60)
+        do_sample = temperature > 0.0
         outputs = self.model.generate(
             input_ids,
             max_new_tokens=max_new_tokens,
-            do_sample=False,  # Greedy decoding
+            do_sample=do_sample,
+            temperature=temperature if do_sample else None,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
         )
@@ -183,9 +217,14 @@ class LLMWrapper:
         generated_ids = outputs[0, input_ids.shape[1] :]
         generated_continuation = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        # Reconstruct full tool call with "action: " prefix for parsing
-        # The prompt ends with "Action:" so we prepend "action: " to the continuation
-        full_generated_text = f"action: {generated_continuation}"
+        # Check for stop sequences and truncate if found
+        for stop_seq in stop_sequences:
+            if stop_seq in generated_continuation:
+                generated_continuation = generated_continuation.split(stop_seq)[0]
+
+        # STE format: The model generates the assistant response
+        # For parsing, we use the raw continuation
+        full_generated_text = generated_continuation
 
         return generated_continuation, full_generated_text, input_ids, generated_ids.unsqueeze(0)
 
