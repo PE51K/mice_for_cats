@@ -157,33 +157,24 @@ class MICEFeatureExtractor:
 
         Paper: "we label a generated tool call as correct if and only if
         it exactly matches the one given by STE"
-
-        Uses semantic JSON comparison to handle formatting differences.
         """
-        # Extract action and action_input
-        gen_action = self._extract_action(generated)
-        gold_action = example.gold_action.strip()
+        gen_action = self._extract_action(generated).strip()
+        gen_input_str = self._extract_action_input(generated).strip()
 
-        gen_input_str = self._extract_action_input(generated)
-        gold_input_str = example.gold_action_input.strip()
+        # Reconstruct the tool call exactly as the gold format
+        generated_call = f"action: {gen_action}\naction_input: {gen_input_str}".strip()
+        gold_call = example.gold_tool_call.strip()
 
-        # Check action match
-        action_match = gen_action == gold_action
-
-        # Try semantic JSON comparison for action_input
-        input_match = self._compare_json_semantic(gen_input_str, gold_input_str)
-
-        is_correct = action_match and input_match
+        is_correct = generated_call == gold_call
 
         if debug:
             print(f"  [{'CORRECT' if is_correct else 'INCORRECT'}]")
-            print(f"  Gold action: '{gold_action}'")
+            print(f"  Gold action: '{example.gold_action.strip()}'")
             print(f"  Gen action:  '{gen_action}'")
-            print(f"  Action match: {action_match}")
             gold_preview = (
-                gold_input_str[:100] + "..."
-                if len(gold_input_str) > 100
-                else gold_input_str
+                example.gold_action_input[:100] + "..."
+                if len(example.gold_action_input) > 100
+                else example.gold_action_input
             )
             gen_preview = (
                 gen_input_str[:100] + "..."
@@ -192,7 +183,7 @@ class MICEFeatureExtractor:
             )
             print(f"  Gold input: '{gold_preview}'")
             print(f"  Gen input:  '{gen_preview}'")
-            print(f"  Input match (semantic JSON): {input_match}")
+            print(f"  Exact match: {is_correct}")
 
         return is_correct
 
