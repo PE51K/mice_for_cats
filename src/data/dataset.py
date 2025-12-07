@@ -14,7 +14,6 @@ it exactly matches the one given by STE."
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -71,20 +70,18 @@ class STEDataset:
         # Test data is organized by API
         test_path = self.data_dir / "llama-recipes/ft_datasets/tool_test.json"
         # Training data is a flat list
-        train_path = (
-            self.data_dir / "llama-recipes/ft_datasets/tool_data_train_STE_full.json"
-        )
+        train_path = self.data_dir / "llama-recipes/ft_datasets/tool_data_train_STE_full.json"
 
-        with open(test_path, "r", encoding="utf-8") as f:
+        with open(test_path, encoding="utf-8") as f:
             self.test_raw = json.load(f)
 
-        with open(train_path, "r", encoding="utf-8") as f:
+        with open(train_path, encoding="utf-8") as f:
             self.train_raw = json.load(f)
 
         print(f"Loaded {len(self.train_raw)} training examples")
         print(f"Loaded test data with {len(self.test_raw)} APIs")
 
-    def _parse_example(self, raw: Dict) -> STEExample:
+    def _parse_example(self, raw: dict) -> STEExample:
         """Parse raw JSON example to STEExample dataclass."""
         # Handle both list and string formats for API name
         api_name = raw["API_name_list"]
@@ -104,7 +101,7 @@ class STEDataset:
         demo_size: int = 4520,
         samples_per_api_train: int = 30,
         samples_per_api_val: int = 15,
-    ) -> Tuple[List[STEExample], List[STEExample], List[STEExample], List[STEExample]]:
+    ) -> tuple[list[STEExample], list[STEExample], list[STEExample], list[STEExample]]:
         """
         Create dataset splits following paper Section 4.1.
 
@@ -125,7 +122,7 @@ class STEDataset:
             test_set: Test examples for final evaluation (750)
         """
         # Group training data by API
-        api_to_examples: Dict[str, List[STEExample]] = {}
+        api_to_examples: dict[str, list[STEExample]] = {}
         for item in self.train_raw:
             example = self._parse_example(item)
             if example.api_name not in api_to_examples:
@@ -154,9 +151,7 @@ class STEDataset:
             val_set.extend(val_samples)
 
             # Rest goes to demo pool
-            demo_pool.extend(
-                examples_copy[samples_per_api_train + samples_per_api_val :]
-            )
+            demo_pool.extend(examples_copy[samples_per_api_train + samples_per_api_val :])
 
         # Sample demonstration set from remaining
         self.rng.shuffle(demo_pool)
@@ -175,7 +170,7 @@ class STEDataset:
 
         return demo_set, train_set, val_set, test_set
 
-    def get_api_list(self) -> List[str]:
+    def get_api_list(self) -> list[str]:
         """Get list of all unique API names."""
         apis = set()
         for item in self.train_raw:
@@ -191,7 +186,7 @@ class STEDataset:
         demo_size: int = 4520,
         samples_per_api_train: int = 30,
         samples_per_api_val: int = 15,
-    ) -> Tuple[List[STEExample], List[STEExample], List[STEExample], List[STEExample]]:
+    ) -> tuple[list[STEExample], list[STEExample], list[STEExample], list[STEExample]]:
         """
         Create splits with one API held out for zero-shot evaluation.
 
@@ -215,7 +210,7 @@ class STEDataset:
             test_set: Test examples (ONLY from held-out API)
         """
         # Group training data by API
-        api_to_examples: Dict[str, List[STEExample]] = {}
+        api_to_examples: dict[str, list[STEExample]] = {}
         for item in self.train_raw:
             example = self._parse_example(item)
             if example.api_name not in api_to_examples:
@@ -249,9 +244,7 @@ class STEDataset:
             val_set.extend(val_samples)
 
             # Rest goes to demo pool
-            demo_pool.extend(
-                examples_copy[samples_per_api_train + samples_per_api_val :]
-            )
+            demo_pool.extend(examples_copy[samples_per_api_train + samples_per_api_val :])
 
         # Sample demonstration set from remaining (49 APIs)
         self.rng.shuffle(demo_pool)

@@ -11,7 +11,7 @@ and Llama3.2-3B-Instruct"
 
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -74,7 +74,7 @@ class LLMWrapper:
     def __init__(
         self,
         model_name: str = "meta-llama/Llama-3.1-8B-Instruct",
-        device: Optional[str] = None,
+        device: str | None = None,
         torch_dtype: torch.dtype = torch.bfloat16,
     ):
         """
@@ -124,7 +124,7 @@ class LLMWrapper:
             f"hidden_size={self.hidden_size}, vocab_size={self.vocab_size}"
         )
 
-    def format_prompt(self, query: str, api_description: str, demos: List[Any]) -> str:
+    def format_prompt(self, query: str, api_description: str, demos: list[Any]) -> str:
         """
         Format input prompt with demonstrations.
 
@@ -141,28 +141,22 @@ class LLMWrapper:
         prompt_template = PROMPT_TEMPLATE
         if DEFAULT_PROMPT_PATH.exists():
             try:
-                prompt_template = DEFAULT_PROMPT_PATH.read_text(
-                    encoding="utf-8"
-                ).strip()
+                prompt_template = DEFAULT_PROMPT_PATH.read_text(encoding="utf-8").strip()
             except OSError:
                 pass
 
         # Build API descriptors from demos + current example
-        api_entries: Dict[str, str] = {}
+        api_entries: dict[str, str] = {}
         for ex in demos:
             api_entries[ex.api_name] = ex.api_description
         if demos:
             api_entries.setdefault(demos[0].api_name, api_description)
         else:
             api_entries.setdefault("API", api_description)
-        api_desc_text = "\n".join(
-            [f"{name}: {desc}" for name, desc in api_entries.items()]
-        )
+        api_desc_text = "\n".join([f"{name}: {desc}" for name, desc in api_entries.items()])
         api_names_text = ", ".join(api_entries.keys())
 
-        header = prompt_template.format(
-            api_descriptions=api_desc_text, api_names=api_names_text
-        )
+        header = prompt_template.format(api_descriptions=api_desc_text, api_names=api_names_text)
 
         # Format demonstrations using the Action / Action Input style from STE
         demo_blocks = []
@@ -196,7 +190,7 @@ class LLMWrapper:
     @torch.no_grad()
     def generate(
         self, prompt: str, max_new_tokens: int = 256
-    ) -> Tuple[str, torch.Tensor, torch.Tensor]:
+    ) -> tuple[str, torch.Tensor, torch.Tensor]:
         """
         Generate text with greedy decoding.
 
@@ -233,7 +227,7 @@ class LLMWrapper:
     @torch.no_grad()
     def forward_with_hidden_states(
         self, input_ids: torch.Tensor, generated_ids: torch.Tensor
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    ) -> tuple[list[torch.Tensor], torch.Tensor]:
         """
         Forward pass returning hidden states from all layers.
 

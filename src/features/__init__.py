@@ -1,8 +1,7 @@
 """Feature extraction modules for MICE."""
 
 from .bertscore import BERTScoreComputer
-from .raw_confidence import RawConfidenceComputer
 from .extractor import MICEFeatureExtractor
+from .raw_confidence import RawConfidenceComputer
 
-__all__ = ["BERTScoreComputer", "RawConfidenceComputer", "MICEFeatureExtractor"]
-
+__all__ = ["BERTScoreComputer", "MICEFeatureExtractor", "RawConfidenceComputer"]

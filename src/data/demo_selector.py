@@ -8,7 +8,6 @@ which computes similarity to the evaluation example using SentenceBERT
 (Reimers and Gurevych, 2019)."
 """
 
-from typing import List
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -26,7 +25,7 @@ class DemoSelector:
 
     def __init__(
         self,
-        demo_set: List[STEExample],
+        demo_set: list[STEExample],
         model_name: str = "sentence-transformers/paraphrase-mpnet-base-v2",
         num_shots: int = 8,
     ):
@@ -56,7 +55,7 @@ class DemoSelector:
             self.demo_embeddings, axis=1, keepdims=True
         )
 
-    def select_demos(self, query: str) -> List[STEExample]:
+    def select_demos(self, query: str) -> list[STEExample]:
         """
         Select most similar demonstrations for a query.
 
@@ -81,7 +80,7 @@ class DemoSelector:
 
         return [self.demo_set[i] for i in top_indices]
 
-    def format_demo_prompt(self, demos: List[STEExample]) -> str:
+    def format_demo_prompt(self, demos: list[STEExample]) -> str:
         """
         Format demonstrations into a prompt string.
 

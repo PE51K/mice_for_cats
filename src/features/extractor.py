@@ -12,7 +12,7 @@ Features:
 
 import json
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import torch
@@ -35,9 +35,7 @@ class MICEFeatureExtractor:
     3. Raw confidence from token probabilities
     """
 
-    def __init__(
-        self, llm: LLMWrapper, bertscore_model: str = "microsoft/deberta-xlarge-mnli"
-    ):
+    def __init__(self, llm: LLMWrapper, bertscore_model: str = "microsoft/deberta-xlarge-mnli"):
         """
         Initialize feature extractor.
 
@@ -59,10 +57,10 @@ class MICEFeatureExtractor:
     def extract_single(
         self,
         example: STEExample,
-        demos: List[STEExample],
+        demos: list[STEExample],
         max_new_tokens: int = 256,
         debug: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Extract features for a single example.
 
@@ -149,9 +147,7 @@ class MICEFeatureExtractor:
             "gold_tool_call": example.gold_tool_call,
         }
 
-    def _check_correctness(
-        self, generated: str, example: STEExample, debug: bool = False
-    ) -> bool:
+    def _check_correctness(self, generated: str, example: STEExample, debug: bool = False) -> bool:
         """
         Check if generated output matches gold tool call.
 
@@ -176,11 +172,7 @@ class MICEFeatureExtractor:
                 if len(example.gold_action_input) > 100
                 else example.gold_action_input
             )
-            gen_preview = (
-                gen_input_str[:100] + "..."
-                if len(gen_input_str) > 100
-                else gen_input_str
-            )
+            gen_preview = gen_input_str[:100] + "..." if len(gen_input_str) > 100 else gen_input_str
             print(f"  Gold input: '{gold_preview}'")
             print(f"  Gen input:  '{gen_preview}'")
             print(f"  Exact match: {is_correct}")
@@ -301,12 +293,12 @@ class MICEFeatureExtractor:
 
     def extract_batch(
         self,
-        examples: List[STEExample],
+        examples: list[STEExample],
         demo_selector,
         max_new_tokens: int = 256,
         desc: str = "Extracting features",
         debug_first_n: int = 0,
-    ) -> Dict[str, np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         """
         Extract features for a batch of examples.
 

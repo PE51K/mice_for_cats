@@ -27,6 +27,46 @@ packages = ["src"]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "ipython>=8.0.0",
+    "ruff>=0.14.7",
 ]
+
+[tool.ruff]
+target-version = "py313" # Target Python version
+line-length = 100 # Max line length
+exclude = [".venv"]
+
+[tool.ruff.format]
+quote-style = "double" # Use double quotes for strings
+indent-style = "space" # Use spaces for indentation
+docstring-code-format = true # Format docstrings with code blocks
+
+[tool.ruff.lint]
+select = [
+  "E", "W", "F", # Pyflakes & Pycodestyle (correctness & style)
+  "I", # isort (import sorting)
+  "N", # pep8-naming (snake_case/CamelCase)
+  "ANN", # flake8-annotations (require type hints)
+  "D", # pydocstyle (docstrings)
+  "B", # flake8-bugbear (bug-prone patterns)
+  "UP", # pyupgrade (modern syntax)
+  "S", # flake8-bandit (basic security / secrets smells)
+  "C90", # McCabe complexity
+  "PD", # Pydantic-specific best practices
+  "RUF" # Ruff extras (e.g., invalid noqa)
+]
+ignore = [
+  "D212", # Multi-line summary should start at first line
+  "RUF001", # Ignore checking of Cyrillic characters
+  "S101", # Allow use of assert statements
+  "D100", # Do not require docstrings in public modules
+  "D415", # First line should end with a period
+]
+exclude = ["*.ipynb"] # Ignore Jupyter notebooks
+mccabe.max-complexity = 10 # McCabe threshold
+
+[tool.ruff.lint.pydocstyle]
+convention = "google" # Enforce Google-style docstrings
+
+[tool.ruff.lint.flake8-annotations]
+suppress-dummy-args = true # Don't complain about placeholders like "_"
+suppress-none-returning = true # Don't complain about functions that return None

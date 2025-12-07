@@ -87,9 +87,7 @@ def parse_args():
         ],
         help="LLM model to use",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed for reproducibility"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument(
         "--output_dir", type=str, default="results", help="Output directory for results"
     )
@@ -175,13 +173,9 @@ def main():
         print("Loading Cached Features")
         print("=" * 60)
 
-        train_data = load_features(
-            features_dir / f"features_{model_name_clean}_train.pkl"
-        )
+        train_data = load_features(features_dir / f"features_{model_name_clean}_train.pkl")
         val_data = load_features(features_dir / f"features_{model_name_clean}_val.pkl")
-        test_data = load_features(
-            features_dir / f"features_{model_name_clean}_test.pkl"
-        )
+        test_data = load_features(features_dir / f"features_{model_name_clean}_test.pkl")
     else:
         # Generate and extract features
         print("\n" + "=" * 60)
@@ -194,9 +188,7 @@ def main():
             model_name=config.icl.sentence_transformer_model,
             num_shots=config.icl.num_shots,
         )
-        feature_extractor = MICEFeatureExtractor(
-            llm, bertscore_model=config.model.bertscore_model
-        )
+        feature_extractor = MICEFeatureExtractor(llm, bertscore_model=config.model.bertscore_model)
 
         print("\n" + "=" * 60)
         print("Extracting Features")
@@ -235,17 +227,10 @@ def main():
     # Print dataset statistics
     print("\nDataset Statistics:")
     print(
-        f"  Train: {len(train_data['labels'])} samples, "
-        f"{train_data['labels'].mean():.2%} accuracy"
+        f"  Train: {len(train_data['labels'])} samples, {train_data['labels'].mean():.2%} accuracy"
     )
-    print(
-        f"  Val: {len(val_data['labels'])} samples, "
-        f"{val_data['labels'].mean():.2%} accuracy"
-    )
-    print(
-        f"  Test: {len(test_data['labels'])} samples, "
-        f"{test_data['labels'].mean():.2%} accuracy"
-    )
+    print(f"  Val: {len(val_data['labels'])} samples, {val_data['labels'].mean():.2%} accuracy")
+    print(f"  Test: {len(test_data['labels'])} samples, {test_data['labels'].mean():.2%} accuracy")
 
     # Initialize estimators
     print("\n" + "=" * 60)
@@ -275,9 +260,7 @@ def main():
 
         # Train on training data
         print("  Training...")
-        estimator.fit(
-            train_data["features"], train_data["labels"], train_data["raw_confidences"]
-        )
+        estimator.fit(train_data["features"], train_data["labels"], train_data["raw_confidences"])
 
         # Predict on test set
         print("  Predicting...")
@@ -289,9 +272,7 @@ def main():
         print("  Computing metrics...")
         smece = compute_smece(test_confidences, test_data["labels"])
         etcu_metrics = compute_all_etcu_metrics(test_confidences, test_data["labels"])
-        class_metrics = compute_classification_metrics(
-            test_confidences, test_data["labels"]
-        )
+        class_metrics = compute_classification_metrics(test_confidences, test_data["labels"])
 
         # Store results
         results[estimator.name] = {"smece": smece, **etcu_metrics, **class_metrics}

@@ -21,7 +21,6 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -39,6 +38,8 @@ if not os.environ.get("HF_TOKEN"):
 
 # Import from src package
 import numpy as np
+from tqdm import tqdm
+
 from src.config import Config
 from src.data.dataset import STEDataset
 from src.data.demo_selector import DemoSelector
@@ -50,7 +51,6 @@ from src.metrics.smece import compute_smece
 from src.models.llm_wrapper import LLMWrapper
 from src.utils.io import load_features, save_features, save_results
 from src.utils.seed import set_all_seeds
-from tqdm import tqdm
 
 
 def parse_args():
@@ -66,9 +66,7 @@ def parse_args():
         ],
         help="LLM model to use",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed for reproducibility"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument(
         "--output_dir", type=str, default="results_zero_shot", help="Output directory"
     )
@@ -94,7 +92,7 @@ def run_zero_shot_for_api(
     feature_extractor: MICEFeatureExtractor,
     output_dir: Path,
     skip_generation: bool = False,
-) -> Dict:
+) -> dict:
     """
     Run zero-shot evaluation for a single held-out API.
 
@@ -128,12 +126,8 @@ def run_zero_shot_for_api(
 
     if skip_generation:
         print("Loading cached features...")
-        train_data = load_features(
-            features_dir / f"features_{model_name_clean}_train.pkl"
-        )
-        test_data = load_features(
-            features_dir / f"features_{model_name_clean}_test.pkl"
-        )
+        train_data = load_features(features_dir / f"features_{model_name_clean}_train.pkl")
+        test_data = load_features(features_dir / f"features_{model_name_clean}_test.pkl")
     else:
         print("Extracting features...")
         demo_selector = DemoSelector(
@@ -171,9 +165,7 @@ def run_zero_shot_for_api(
 
     # Train MICE models (only LR and RF for zero-shot)
     estimators = [
-        MICELogisticRegression(
-            C=config.mice.lr_C, zero_shot=True, random_state=config.seed
-        ),
+        MICELogisticRegression(C=config.mice.lr_C, zero_shot=True, random_state=config.seed),
         MICERandomForest(
             n_estimators=config.mice.rf_n_estimators,
             max_depth=config.mice.rf_max_depth,
@@ -186,9 +178,7 @@ def run_zero_shot_for_api(
     results = {}
     for estimator in estimators:
         print(f"\n  Training {estimator.name}...")
-        estimator.fit(
-            train_data["features"], train_data["labels"], train_data["raw_confidences"]
-        )
+        estimator.fit(train_data["features"], train_data["labels"], train_data["raw_confidences"])
 
         test_confidences = estimator.predict_proba(
             test_data["features"], test_data["raw_confidences"]
@@ -197,9 +187,7 @@ def run_zero_shot_for_api(
         # Compute metrics
         smece = compute_smece(test_confidences, test_data["labels"])
         etcu_metrics = compute_all_etcu_metrics(test_confidences, test_data["labels"])
-        class_metrics = compute_classification_metrics(
-            test_confidences, test_data["labels"]
-        )
+        class_metrics = compute_classification_metrics(test_confidences, test_data["labels"])
 
         results[estimator.name] = {"smece": smece, **etcu_metrics, **class_metrics}
 
@@ -253,9 +241,7 @@ def main():
     if not args.skip_generation:
         print("\nInitializing models...")
         llm = LLMWrapper(config.model.model_name)
-        feature_extractor = MICEFeatureExtractor(
-            llm, bertscore_model=config.model.bertscore_model
-        )
+        feature_extractor = MICEFeatureExtractor(llm, bertscore_model=config.model.bertscore_model)
 
     # Run zero-shot evaluation for each API
     all_results = []
@@ -283,9 +269,7 @@ def main():
     for result in all_results:
         for estimator_name in combined_metrics.keys():
             if estimator_name in result["results"]:
-                combined_metrics[estimator_name].append(
-                    result["results"][estimator_name]
-                )
+                combined_metrics[estimator_name].append(result["results"][estimator_name])
 
     # Average metrics across all APIs
     aggregated_results = {}

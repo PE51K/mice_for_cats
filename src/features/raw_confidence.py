@@ -20,7 +20,6 @@ Paper: "∏_{i∈S} p(w_i|w_{<i}), where S is the subset of token indices
 that are relevant to the tool call"
 """
 
-from typing import Optional, Set
 
 import torch
 from transformers import AutoTokenizer
@@ -57,7 +56,7 @@ class RawConfidenceComputer:
 
     def _cache_exclude_tokens(self):
         """Cache token IDs for formatting strings to exclude."""
-        self.exclude_token_ids: Set[int] = set()
+        self.exclude_token_ids: set[int] = set()
 
         for pattern in self.EXCLUDE_PATTERNS:
             # Encode without special tokens
@@ -69,7 +68,7 @@ class RawConfidenceComputer:
             tokens = self.tokenizer.encode(char, add_special_tokens=False)
             self.exclude_token_ids.update(tokens)
 
-    def _find_tool_call_end(self, generated_text: str) -> Optional[int]:
+    def _find_tool_call_end(self, generated_text: str) -> int | None:
         """
         Find the character position where the tool call ends.
 
@@ -135,7 +134,7 @@ class RawConfidenceComputer:
         self,
         generated_ids: torch.Tensor,
         log_probs: torch.Tensor,
-        generated_text: Optional[str] = None,
+        generated_text: str | None = None,
         mask_formatting: bool = True,
         truncate_post_args: bool = True,
     ) -> float:
