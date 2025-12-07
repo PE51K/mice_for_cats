@@ -8,7 +8,7 @@
 
 ### Our implementations where the paper is underspecified
 - Prompt: now loaded from `data/simulated-trial-and-error/STE/prompts/prompt_template.txt` (falling back to bundled template) and mirrors that structure; injects API descriptions/names and few-shot demos using Action / Action Input / Final Answer blocks.
-- Demo selection: uses SentenceTransformer `sentence-transformers/paraphrase-mpnet-base-v2` (inferred from STE demo retrieval notebook), cosine similarity on L2-normalized embeddings, top-8 selection.
+- Demo selection: uses SentenceTransformer `sentence-transformers/paraphrase-mpnet-base-v2` (inferred from STE demo retrieval notebook), cosine similarity on L2-normalized embeddings, top-8 selection; default set in `ICLConfig`.
 - Raw confidence token masking: exclude formatting tokens and truncate after the JSON arguments by heuristic brace matching.
 - smECE/NWKR numerics: Silverman bandwidth, reflected Gaussian kernel, 1000-point grid for smECE; 999-point grid for ETCU AUC.
 - Degenerate training labels: LR/RF/HRE/NWKR fall back to predicting the label mean if only one class is present.

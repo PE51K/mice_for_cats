@@ -67,7 +67,8 @@ class ICLConfig:
 
     # Paper: "using SentenceBERT (Reimers and Gurevych, 2019)"
     # for similarity-based example selection
-    sentence_transformer_model: str = "all-MiniLM-L6-v2"
+    # Use the STE demo-retrieval model (mpnet-based) to align with STE code.
+    sentence_transformer_model: str = "sentence-transformers/paraphrase-mpnet-base-v2"
 
 
 @dataclass
