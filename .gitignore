@@ -35,9 +35,5 @@ ENV/
 *.swp
 *.swo
 
-# Results (keep structure but not data)
-results/*.json
-results/*.pkl
-
 # HuggingFace cache
 .cache/
