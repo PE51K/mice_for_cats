@@ -1,0 +1,1268 @@
+============================================================
+MICE for CATs Reproduction Pipeline
+============================================================
+All random seeds set to 42
+
+Configuration:
+  Model: meta-llama/Llama-3.2-3B-Instruct
+  Seed: 42
+  Data dir: /home/gregory1m/Code/llm-agent-uncertainty/tools_uncertainty/mice_for_cats/data/simulated-trial-and-error
+  Output dir: results
+
+============================================================
+Loading STE Dataset
+============================================================
+Loaded 6770 training examples
+Loaded test data with 50 APIs
+Found 50 unique APIs in training data
+Created splits: demo=4520, train=1500, val=750, test=750
+
+============================================================
+Initializing Models
+============================================================
+Logging in to Hugging Face...
+Loading meta-llama/Llama-3.2-3B-Instruct...
+Model loaded: 28 layers, hidden_size=3072, vocab_size=128256
+Loading SentenceTransformer model: sentence-transformers/paraphrase-mpnet-base-v2
+Encoding 4520 demo queries...
+
+============================================================
+Extracting Features
+============================================================
+
+Processing training set...
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What is the upper limit for the number of locations that can be added to a group using the CatchLoc API?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... t] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.get.limitations"
+}
+Now it's your turn.
+
+User Query: What is the upper limit for the number of locations that can be added to a group using the CatchLoc API?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "api": "api.common.group.set.modify",
+  "timestamp": "current_timestamp",
+  "api_key": "XXXXXXXX",
+  "group_name": "specific_group_name",
+  "cert_key": "my_cert_key",
+  "group_key": "specific_group_key"
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+   "api": "api.common.group.set.modify",
+   "api_key": "XXXXXXXX",
+   "group_name": "",
+   "cert_key": "",
+   "group_key": "",
+   "timestamp": ""
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "api": "api.common.group.set.modify",
+  "timestamp": "current_timestamp",
+  "api_key": "XXXXXXXX",
+  "group_name": "specific_group_name",
+  "cert_key": "my_cert_key",
+  "group_key": "specific_group_key"
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.001411
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What are the optional parameters for modifying the group information in CatchLoc?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... ut: {
+  "timestamp": "2022-10-01 09:00:00",
+  "api_key": "my_api_key",
+  "api": "api.common.group.get",
+  "group_key": "group_key"
+}
+Now it's your turn.
+
+User Query: What are the optional parameters for modifying the group information in CatchLoc?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "timestamp": "",
+  "api_key": "your_api_key_here",
+  "group_name": "",
+  "api": "api.common.group.set.modify",
+  "cert_key": "your_cert_key_here",
+  "group_key": ""
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "your_api_key_here",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key_here",
+    "group_key": ""
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "timestamp": "",
+  "api_key": "your_api_key_here",
+  "group_name": "",
+  "api": "api.common.group.set.modify",
+  "cert_key": "your_cert_key_here",
+  "group_key": ""
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.316406
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What parameters do I need to modify group information in CatchLoc?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... ": "your_group_name_here",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key_here",
+    "group_key": "your_group_key_here"
+}
+Now it's your turn.
+
+User Query: What parameters do I need to modify group information in CatchLoc?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.set.modify",
+    "api_key": "your_api_key_here",
+    "group_name": "your_group_name_here",
+    "timestamp": "your_timestamp_here",
+    "cert_key": "your_cert_key_here",
+    "group_key": "your_group_key_here"
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "api": "api_common_group_get_modify",
+  "api_key": "your_api_key"
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.set.modify",
+    "api_key": "your_api_key_here",
+    "group_name": "your_group_name_here",
+    "timestamp": "your_timestamp_here",
+    "cert_key": "your_cert_key_here",
+    "group_key": "your_group_key_here"
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.030151
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [CORRECT]
+================================================================================
+
+Query: What is the reason for including the "timestamp" parameter when making the API call to update the group information in CatchLoc?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... up.set.modify",
+    "cert_key": "my_cert_key",
+    "group_key": "example_group_key"
+}
+Now it's your turn.
+
+User Query: What is the reason for including the "timestamp" parameter when making the API call to update the group information in CatchLoc?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "your_api_key_here",
+    "group_name": "your_group_name_here",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key_here",
+    "group_key": "your_group_key_here"
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "your_api_key_here",
+    "group_name": "your_group_name_here",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key_here",
+    "group_key": "your_group_key_here"
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "your_api_key_here",
+    "group_name": "your_group_name_here",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key_here",
+    "group_key": "your_group_key_here"
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.458984
+Match Result: ✓ CORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What is the purpose of the "cert_key" parameter in the API call for adding a new location to a group in CatchLoc?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+Now it's your turn.
+
+User Query: What is the purpose of the "cert_key" parameter in the API call for adding a new location to a group in CatchLoc?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "2022-01-01",
+    "api_key": "my_api_key",
+    "group_name": "new_group",
+    "cert_key": "my_cert_key",
+    "group_key": "my_group_key",
+    "api": "api.common.group.set.modify"
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.026245
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+BATCH SUMMARY: Train
+================================================================================
+Tool Call Accuracy: 835/1500 correct (55.7%)
+Mean Raw Confidence: 0.5256 ± 0.3437
+  Correct samples: 0.7183 (n=835)
+  Incorrect samples: 0.2836 (n=665)
+================================================================================
+
+
+Processing validation set...
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What are the steps to use the CatchLoc API in order to create a new group?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... pi_key",
+  "group_name": "New Group",
+  "api": "api.common.group.set.modify",
+  "cert_key": "my_cert_key",
+  "group_key": "new_group_key"
+}
+Now it's your turn.
+
+User Query: What are the steps to use the CatchLoc API in order to create a new group?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "2023-03-09",
+    "api_key": "your_api_key",
+    "group_name": "New Group",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key",
+    "group_key": "new_group_key"
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "2021-01-01",
+    "api_key": "your_api_key",
+    "group_name": "New Group",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key",
+    "group_key": "new_group_key"
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "2023-03-09",
+    "api_key": "your_api_key",
+    "group_name": "New Group",
+    "api": "api.common.group.set.modify",
+    "cert_key": "your_cert_key",
+    "group_key": "new_group_key"
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.158203
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What is the maximum number of locations that can be added to a group in CatchLoc?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... p": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+Now it's your turn.
+
+User Query: What is the maximum number of locations that can be added to a group in CatchLoc?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.get.limitations"
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.get.limitations"
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.785156
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [CORRECT]
+================================================================================
+
+Query: What is the highest limit for the number of locations that can be included in a group in CatchLoc?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... ",
+    "api": "api.common.group.set.modify",
+    "cert_key": "my_cert_key",
+    "group_key": "specific_group_key"
+}
+Now it's your turn.
+
+User Query: What is the highest limit for the number of locations that can be included in a group in CatchLoc?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "timestamp": "",
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.046143
+Match Result: ✓ CORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: Is it possible to use the CatchLoc API to access the location data for a specific group?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... 
+    "api_key": "",
+    "group_name": "",
+    "api": "api.common.group.set.modify",
+    "cert_key": "",
+    "group_key": ""
+}
+Now it's your turn.
+
+User Query: Is it possible to use the CatchLoc API to access the location data for a specific group?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.get",
+    "timestamp": "2022-01-01",
+    "api_key": "your_api_key",
+    "group_name": "specific_group",
+    "cert_key": "your_cert_key",
+    "group_key": "your_group_key"
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.set.modify",
+    "timestamp": "2022-01-01 12:00:00",
+    "api_key": "your_api_key",
+    "group_name": "your_group_name",
+    "cert_key": "your_cert_key",
+    "group_key": "your_group_key"
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+    "api": "api.common.group.get",
+    "timestamp": "2022-01-01",
+    "api_key": "your_api_key",
+    "group_name": "specific_group",
+    "cert_key": "your_cert_key",
+    "group_key": "your_group_key"
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.041260
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: In the API call for adding a new location to a group in CatchLoc, what is the significance of the "group_key" parameter?
+API: CatchLoc%%[Group Management] API access for modifying group information
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: CatchLoc%%[Group Management] API access for modifying group information
+Description: API_name: CatchLoc%%[Gr ... ame": "your_group_name",
+    "cert_key": "your_cert_key",
+    "group_key": "your_group_key"
+}
+Now it's your turn.
+
+User Query: In the API call for adding a new location to a group in CatchLoc, what is the significance of the "group_key" parameter?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "api": "api.common.group.set.modify",
+  "api_key": "",
+  "group_name": "",
+  "cert_key": "",
+  "group_key": "",
+  "timestamp": ""
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+   "api": "api.common.group.set.modify",
+   "api_key": "XXXXXXXX",
+   "group_name": "",
+   "cert_key": "",
+   "group_key": "",
+   "timestamp": ""
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: CatchLoc%%[Group Management] API access for modifying group information
+Action Input: {
+  "api": "api.common.group.set.modify",
+  "api_key": "",
+  "group_name": "",
+  "cert_key": "",
+  "group_key": "",
+  "timestamp": ""
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.006744
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+BATCH SUMMARY: Val
+================================================================================
+Tool Call Accuracy: 392/750 correct (52.3%)
+Mean Raw Confidence: 0.4908 ± 0.3440
+  Correct samples: 0.6930 (n=392)
+  Incorrect samples: 0.2695 (n=358)
+================================================================================
+
+
+Processing test set...
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What is the date 90 days from 2022-10-14?
+API: add_date
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: add_date
+Description: API_name: add_date
+Description: Add days to a date. Date should be pass as 'yyyy-mm-dd ... ": "2021-12-31",
+    "days": -90
+}
+---
+User Query: What is the date 1000 days before February 29, 2024?
+Action: add_date
+Action Input: {"date": "2024-02-29", "days": -1000}
+Now it's your turn.
+
+User Query: What is the date 90 days from 2022-10-14?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {"date": "2022-10-14", "days": 90}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+    "date": "2022-10-14",
+    "days": 90
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {"date": "2022-10-14", "days": 90}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.617188
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: Can I calculate the date that is 14 days after 2022-01-01?
+API: add_date
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: add_date
+Description: API_name: add_date
+Description: Add days to a date. Date should be pass as 'yyyy-mm-dd ... 
+---
+User Query: What will be the date exactly one year after January 1, 2022?
+Action: add_date
+Action Input: {
+    "date": "2022-01-01",
+    "days": 365
+}
+Now it's your turn.
+
+User Query: Can I calculate the date that is 14 days after 2022-01-01?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+    "date": "2022-01-01",
+    "days": 14
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {"date": "2022-01-01", "days": 14}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+    "date": "2022-01-01",
+    "days": 14
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.197266
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [CORRECT]
+================================================================================
+
+Query: How can I calculate the date that is 20 days before 2022-01-01?
+API: add_date
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: add_date
+Description: API_name: add_date
+Description: Add days to a date. Date should be pass as 'yyyy-mm-dd ... days": -30
+}
+---
+User Query: What is the date 1000 days before February 29, 2024?
+Action: add_date
+Action Input: {"date": "2024-02-29", "days": -1000}
+Now it's your turn.
+
+User Query: How can I calculate the date that is 20 days before 2022-01-01?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+  "date": "2022-01-01",
+  "days": -20
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+  "date": "2022-01-01",
+  "days": -20
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+  "date": "2022-01-01",
+  "days": -20
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.343750
+Match Result: ✓ CORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What is the date 50 days before a specific date 2022-01-01?
+API: add_date
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: add_date
+Description: API_name: add_date
+Description: Add days to a date. Date should be pass as 'yyyy-mm-dd ... days": 140
+}
+---
+User Query: What is the date 365 days after January 1, 2022?
+Action: add_date
+Action Input: {
+    "date": "2022-01-01",
+    "days": 365
+}
+Now it's your turn.
+
+User Query: What is the date 50 days before a specific date 2022-01-01?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+    "date": "2022-01-01",
+    "days": -50
+}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+  "date": "2022-01-01",
+  "days": -50
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+    "date": "2022-01-01",
+    "days": -50
+}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.761719
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+EXAMPLE DEBUG [INCORRECT]
+================================================================================
+
+Query: What is the date 365 days before February 29, 2024?
+API: add_date
+
+--------------------------------------------------------------------------------
+INPUT TO MODEL (truncated):
+--------------------------------------------------------------------------------
+Your task is to answer the user's query as best you can. You have access to the following tools which you can use via API call:
+
+API_name: add_date
+Description: API_name: add_date
+Description: Add days to a date. Date should be pass as 'yyyy-mm-dd ... 023-09-30", "days": -365}
+---
+User Query: What is the date 30 days after February 1, 2023?
+Action: add_date
+Action Input: {
+  "date": "2023-02-01",
+  "days": 30
+}
+Now it's your turn.
+
+User Query: What is the date 365 days before February 29, 2024?
+
+--------------------------------------------------------------------------------
+MODEL OUTPUT (truncated):
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {"date": "2024-02-29", "days": -365}
+
+
+--------------------------------------------------------------------------------
+GOLD TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {
+  "date": "2024-02-29",
+  "days": -365
+}
+
+--------------------------------------------------------------------------------
+EXTRACTED TOOL CALL:
+--------------------------------------------------------------------------------
+Action: add_date
+Action Input: {"date": "2024-02-29", "days": -365}
+
+--------------------------------------------------------------------------------
+METRICS:
+--------------------------------------------------------------------------------
+Raw Confidence: 0.808594
+Match Result: ✗ INCORRECT
+================================================================================
+
+
+================================================================================
+BATCH SUMMARY: Test
+================================================================================
+Tool Call Accuracy: 256/750 correct (34.1%)
+Mean Raw Confidence: 0.4831 ± 0.3504
+  Correct samples: 0.7379 (n=256)
+  Incorrect samples: 0.3510 (n=494)
+================================================================================
+
+
+================================================================================
+DATASET STATISTICS
+================================================================================
+
+Tool Call Accuracy (Exact Match):
+  Train: 835/1500 = 55.67%
+  Val:   392/750 = 52.27%
+  Test:  256/750 = 34.13%
+
+Raw Confidence Statistics:
+  Train: 0.5256 ± 0.3437
+  Val:   0.4908 ± 0.3440
+  Test:  0.4831 ± 0.3504
+================================================================================
+
+============================================================
+Training Confidence Estimators
+============================================================
+
+================================================================================
+ESTIMATOR: Raw Confidence
+================================================================================
+Training...
+Predicting on test set...
+Computing metrics...
+
+--------------------------------------------------------------------------------
+CALIBRATION METRICS:
+--------------------------------------------------------------------------------
+  smECE (Smoothed ECE):     0.1504
+  Lower is better for calibration
+
+--------------------------------------------------------------------------------
+ETCU METRICS (Error Detection @ Thresholds):
+--------------------------------------------------------------------------------
+  ETCU (τ=0.1, high conf):  -0.2307
+  ETCU (τ=0.5, medium):     0.0547
+  ETCU (τ=0.9, low conf):   0.2816
+  ETCU AUC (overall):       0.0359
+  Higher is better for error detection
+
+--------------------------------------------------------------------------------
+CLASSIFICATION METRICS (Confidence as Correctness Classifier):
+--------------------------------------------------------------------------------
+  ROC AUC:                  0.8213
+  Precision:                0.5550
+  Recall:                   0.8086
+  F1 Score:                 0.6582
+  Accuracy @ 0.5 thresh:    0.7133
+  Higher is better for classification
+================================================================================
+
+================================================================================
+ESTIMATOR: HRE
+================================================================================
+Training...
+Predicting on test set...
+Computing metrics...
+
+--------------------------------------------------------------------------------
+CALIBRATION METRICS:
+--------------------------------------------------------------------------------
+  smECE (Smoothed ECE):     0.1795
+  Lower is better for calibration
+
+--------------------------------------------------------------------------------
+ETCU METRICS (Error Detection @ Thresholds):
+--------------------------------------------------------------------------------
+  ETCU (τ=0.1, high conf):  -0.2907
+  ETCU (τ=0.5, medium):     0.0507
+  ETCU (τ=0.9, low conf):   0.2809
+  ETCU AUC (overall):       0.0308
+  Higher is better for error detection
+
+--------------------------------------------------------------------------------
+CLASSIFICATION METRICS (Confidence as Correctness Classifier):
+--------------------------------------------------------------------------------
+  ROC AUC:                  0.8174
+  Precision:                0.5495
+  Recall:                   0.8242
+  F1 Score:                 0.6594
+  Accuracy @ 0.5 thresh:    0.7093
+  Higher is better for classification
+================================================================================
+
+================================================================================
+ESTIMATOR: NWKR
+================================================================================
+Training...
+Predicting on test set...
+Computing metrics...
+
+--------------------------------------------------------------------------------
+CALIBRATION METRICS:
+--------------------------------------------------------------------------------
+  smECE (Smoothed ECE):     0.1752
+  Lower is better for calibration
+
+--------------------------------------------------------------------------------
+ETCU METRICS (Error Detection @ Thresholds):
+--------------------------------------------------------------------------------
+  ETCU (τ=0.1, high conf):  -0.2400
+  ETCU (τ=0.5, medium):     0.0480
+  ETCU (τ=0.9, low conf):   0.2815
+  ETCU AUC (overall):       0.0465
+  Higher is better for error detection
+
+--------------------------------------------------------------------------------
+CLASSIFICATION METRICS (Confidence as Correctness Classifier):
+--------------------------------------------------------------------------------
+  ROC AUC:                  0.8213
+  Precision:                0.5466
+  Recall:                   0.8242
+  F1 Score:                 0.6573
+  Accuracy @ 0.5 thresh:    0.7067
+  Higher is better for classification
+================================================================================
+
+================================================================================
+ESTIMATOR: MICE LR
+================================================================================
+Training...
+Predicting on test set...
+Computing metrics...
+
+--------------------------------------------------------------------------------
+CALIBRATION METRICS:
+--------------------------------------------------------------------------------
+  smECE (Smoothed ECE):     0.1780
+  Lower is better for calibration
+
+--------------------------------------------------------------------------------
+ETCU METRICS (Error Detection @ Thresholds):
+--------------------------------------------------------------------------------
+  ETCU (τ=0.1, high conf):  -0.0773
+  ETCU (τ=0.5, medium):     0.0400
+  ETCU (τ=0.9, low conf):   0.2698
+  ETCU AUC (overall):       0.0599
+  Higher is better for error detection
+
+--------------------------------------------------------------------------------
+CLASSIFICATION METRICS (Confidence as Correctness Classifier):
+--------------------------------------------------------------------------------
+  ROC AUC:                  0.8279
+  Precision:                0.5379
+  Recall:                   0.8320
+  F1 Score:                 0.6534
+  Accuracy @ 0.5 thresh:    0.6987
+  Higher is better for classification
+================================================================================
+
+================================================================================
+ESTIMATOR: MICE RF
+================================================================================
+Training...
+Predicting on test set...
+Computing metrics...
+
+--------------------------------------------------------------------------------
+CALIBRATION METRICS:
+--------------------------------------------------------------------------------
+  smECE (Smoothed ECE):     0.1735
+  Lower is better for calibration
+
+--------------------------------------------------------------------------------
+ETCU METRICS (Error Detection @ Thresholds):
+--------------------------------------------------------------------------------
+  ETCU (τ=0.1, high conf):  -0.0000
+  ETCU (τ=0.5, medium):     0.0667
+  ETCU (τ=0.9, low conf):   0.2735
+  ETCU AUC (overall):       0.0903
+  Higher is better for error detection
+
+--------------------------------------------------------------------------------
+CLASSIFICATION METRICS (Confidence as Correctness Classifier):
+--------------------------------------------------------------------------------
+  ROC AUC:                  0.8408
+  Precision:                0.5658
+  Recall:                   0.8398
+  F1 Score:                 0.6761
+  Accuracy @ 0.5 thresh:    0.7253
+  Higher is better for classification
+================================================================================
+
+============================================================
+Saving Results
+============================================================
+Results saved to results/results_meta_llama_Llama_3.2_3B_Instruct_20251208_063310.json
+
+================================================================================
+RESULTS SUMMARY (Test Set)
+================================================================================
+
+Tool Call Accuracy: 34.13% (256/750)
+
+--------------------------------------------------------------------------------
+Confidence Estimator Performance:
+--------------------------------------------------------------------------------
+Estimator                                Calib   ETCU AUC    ROC AUC       F1
+                                       (smECE)                               
+--------------------------------------------------------------------------------
+Raw Confidence                          0.1504     0.0359     0.8213   0.6582
+HRE                                     0.1795     0.0308     0.8174   0.6594
+NWKR                                    0.1752     0.0465     0.8213   0.6573
+MICE LR                                 0.1780     0.0599     0.8279   0.6534
+MICE RF                                 0.1735     0.0903     0.8408   0.6761
+================================================================================
+
+Notes:
+  - Calib (smECE): Lower is better (well-calibrated)
+  - ETCU AUC: Higher is better (error detection)
+  - ROC AUC: Higher is better (classification)
+  - F1: Higher is better (classification)
+================================================================================
+
+Results saved to: results/results_meta_llama_Llama_3.2_3B_Instruct_20251208_063310.json
+
+Done!
